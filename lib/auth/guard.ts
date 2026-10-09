@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
 import { requireUser, AuthError, type SessionUser } from "./session";
 import { ForbiddenError } from "@/lib/permissions";
@@ -23,6 +24,7 @@ export function guarded(
       for (const p of revalidate) revalidatePath(p);
       return r;
     } catch (e) {
+      unstable_rethrow(e); // permite redirect() dentro das actions
       if (e instanceof AuthError) return { erro: "Sessão expirada. Entre novamente." };
       if (e instanceof ForbiddenError || e instanceof NotFoundError) return { erro: "Você não tem permissão para esta ação." };
       if (e instanceof DomainError) return { erro: e.message };

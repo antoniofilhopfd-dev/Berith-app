@@ -50,5 +50,25 @@ await c.execute("INSERT INTO user_invitation (user_id, invitation_id) VALUES (?,
 const inv2 = (await c.execute("INSERT INTO invitations (email, nome, token_hash, convidado_por, expira_em) VALUES (?,?,?,?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 DAY))",
   ["gabriela@exemplo.com", "Gabriela Lima", createHash("sha256").update("demo-convite-aberto").digest("hex"), ana]))[0].insertId;
 await c.execute("INSERT INTO invitation_units (invitation_id, unit_id, funcao) VALUES (?,?,NULL)", [inv2, mus]);
+// ---- Eventos e comunicados (datas relativas a hoje; fuso fixo -03:00 só para a demonstração)
+const dia = (n, hh, mm = 0) => { const d = new Date(Date.now() + n * 86400_000); d.setUTCHours(hh + 3, mm, 0, 0); return d; };
+const ate = (n) => new Date(Date.now() + n * 86400_000).toISOString().slice(0, 10);
+const evento = async (unitId, titulo, inicio, fim, extra = {}) => (await c.execute(
+  `INSERT INTO events (unit_id, titulo, descricao, local, inicio, fim, responsavel_id, limite_participantes, recorrencia, recorrencia_ate, criado_por)
+   VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+  [unitId, titulo, extra.desc ?? null, extra.local ?? null, inicio, fim, extra.resp ?? 1, extra.limite ?? null, extra.rec ?? "nenhuma", extra.ate ?? null, 1]))[0].insertId;
+await evento(null, "Missa da Comunidade", dia(1, 19), dia(1, 20, 30), { local: "Capela Nova Berith", desc: "Celebração semanal aberta a todos os membros.", rec: "semanal", ate: ate(120) });
+const retiro = await evento(null, "Retiro de Advento", dia(12, 8), dia(12, 17), { local: "Casa de Retiros São José", limite: 30, desc: "Um dia de oração e partilha. Inscrição por confirmação no app." });
+await evento(mus, "Ensaio do Ministério de Música", dia(2, 20), dia(2, 21, 30), { local: "Salão paroquial", resp: ana, rec: "semanal", ate: ate(90) });
+await evento(lit, "Reunião de Liturgia", dia(4, 19, 30), dia(4, 21), { local: "Sala 2", resp: bruno });
+await evento(coral, "Ensaio extra do Coral", dia(5, 18), dia(5, 19, 30), { local: "Capela", resp: ana, limite: 12 });
+for (const u of [1, ana, carla, bruno, davi]) await c.execute("INSERT IGNORE INTO event_rsvps (event_id, occurrence_date, user_id, status) VALUES (?,?,?, 'confirmado')", [retiro, ate(12), u]);
+const com1 = (await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, criado_por) VALUES (NULL,?,?,?,UTC_TIMESTAMP(),1)",
+  ["Inscrições abertas para o Retiro de Advento", "Estão abertas as inscrições para o Retiro de Advento. Confirme sua presença na agenda do aplicativo; as vagas são limitadas.", "importante"]))[0].insertId;
+await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, criado_por) VALUES (?,?,?,?,UTC_TIMESTAMP(),?)",
+  [mus, "Repertório da próxima celebração", "Pessoal da Música: o repertório está definido. Ensaio na quarta, 20h, no salão paroquial.", "normal", ana]);
+await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, expira_em, criado_por) VALUES (NULL,?,?,?,UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(), INTERVAL 2 DAY),1)",
+  ["Mudança de local da missa", "Por causa de obras, a missa desta semana será no salão paroquial.", "urgente"]);
+await c.execute("INSERT INTO announcement_reads (announcement_id, user_id) VALUES (?,?)", [com1, ana]);
 console.log("Seed concluído. Senha de todos: Demo-Senha-12345");
 await c.end();

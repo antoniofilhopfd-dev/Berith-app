@@ -23,6 +23,7 @@ function getPool(): Pool {
       ...dbConfig(),
       charset: "utf8mb4",
       timezone: "Z", // datas armazenadas em UTC
+      dateStrings: ["DATE"], // colunas DATE (sem hora) chegam como "AAAA-MM-DD", sem deslocamento de fuso
       waitForConnections: true,
       connectionLimit: Number(process.env.DB_POOL_LIMIT ?? 5),
       queueLimit: 50,
