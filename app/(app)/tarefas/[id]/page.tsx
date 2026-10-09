@@ -20,10 +20,10 @@ export default async function TarefaDetalhe({ params }: { params: Promise<{ id: 
   const opcoes = (gerencia ? ["aberta", "em_andamento", "concluida", "cancelada"] : ["aberta", "em_andamento", "concluida"]).filter((s) => s !== t.status);
   return (
     <div className="space-y-4">
-      <Link href="/tarefas" className="inline-flex min-h-11 items-center text-sm text-vinho">← Tarefas</Link>
+      <Link href="/tarefas" className="inline-flex min-h-11 items-center text-sm text-verde">← Tarefas</Link>
       <header>
         <div className="flex flex-wrap gap-1"><Badge>{STATUS_LABEL[t.status]}</Badge><Badge>{t.unit_nome}</Badge><Badge>prioridade {t.prioridade}</Badge>{Number(t.atrasada) === 1 && <Badge>atrasada</Badge>}{t.meeting_id && <Link href={`/reunioes/${t.meeting_id}`}><Badge>da reunião</Badge></Link>}</div>
-        <h1 className="mt-1 font-titulo text-2xl text-vinho">{t.titulo}</h1>
+        <h1 className="mt-1 font-titulo text-2xl text-verde">{t.titulo}</h1>
         <p className="text-sm text-tinta/70">{t.responsavel_nome ? `Responsável: ${t.responsavel_nome}` : "Sem responsável"}{t.prazo && ` · prazo ${brDate(t.prazo)}`}</p>
         {t.descricao && <p className="mt-2 whitespace-pre-line text-sm">{t.descricao}</p>}
       </header>

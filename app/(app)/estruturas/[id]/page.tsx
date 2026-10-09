@@ -37,10 +37,10 @@ export default async function EstruturaDetalhe({ params }: { params: Promise<{ i
   const roles = permissoes ? (await listRoles()).filter((r) => !r.e_global) : [];
   return (
     <div className="space-y-4">
-      <Link href="/estruturas" className="inline-flex min-h-11 items-center text-sm text-vinho">← Estruturas</Link>
+      <Link href="/estruturas" className="inline-flex min-h-11 items-center text-sm text-verde">← Estruturas</Link>
       <header>
         <Badge>{TIPO_LABEL[unit.tipo]}</Badge>
-        <h1 className="mt-1 font-titulo text-2xl text-vinho">{unit.nome}</h1>
+        <h1 className="mt-1 font-titulo text-2xl text-verde">{unit.nome}</h1>
         {unit.parent_nome && <p className="text-sm text-tinta/60">Subordinada a {unit.parent_nome}</p>}
         {unit.descricao && <p className="mt-2 text-sm">{unit.descricao}</p>}
         {!unit.ativo && <p className="mt-2 text-sm font-medium text-red-700">Estrutura desativada</p>}
@@ -53,7 +53,7 @@ export default async function EstruturaDetalhe({ params }: { params: Promise<{ i
               {membros.map((m) => (
                 <li key={m.membership_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <div>
-                    <Link href={`/membros/${m.user_id}`} className="font-medium text-vinho">{m.nome}</Link>
+                    <Link href={`/membros/${m.user_id}`} className="font-medium text-verde">{m.nome}</Link>
                     <p className="text-xs text-tinta/60">{m.funcao ?? "Integrante"} · desde {formatDate(m.inicio)}</p>
                   </div>
                   {gerirInteg && (

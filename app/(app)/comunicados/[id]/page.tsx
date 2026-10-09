@@ -20,13 +20,13 @@ export default async function ComunicadoDetalhe({ params }: { params: Promise<{ 
   const agendado = isScheduled(a);
   return (
     <div className="space-y-4">
-      <Link href="/comunicados" className="inline-flex min-h-11 items-center text-sm text-vinho">← Comunicados</Link>
+      <Link href="/comunicados" className="inline-flex min-h-11 items-center text-sm text-verde">← Comunicados</Link>
       <header>
         <div className="flex flex-wrap gap-1">
           {a.prioridade !== "normal" && <Badge>{a.prioridade}</Badge>}<Badge>{a.unit_nome ?? "Toda a comunidade"}</Badge>
           {agendado && <Badge>agendado</Badge>}
         </div>
-        <h1 className="mt-1 font-titulo text-2xl text-vinho">{a.titulo}</h1>
+        <h1 className="mt-1 font-titulo text-2xl text-verde">{a.titulo}</h1>
         <p className="text-xs text-tinta/60">{a.autor} · {formatDate(a.publicar_em)} {formatTime(a.publicar_em)}{a.expira_em && ` · expira em ${formatDate(a.expira_em)}`}</p>
         <p className="mt-3 whitespace-pre-line text-sm">{a.corpo}</p>
       </header>

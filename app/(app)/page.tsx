@@ -29,7 +29,7 @@ export default async function Inicio() {
   const vinculos = perfil.vinculos.filter((v) => !v.fim);
   return (
     <section className="space-y-4">
-      <h1 className="font-titulo text-2xl text-vinho">Paz e bem, {user.nome.split(" ")[0]}!</h1>
+      <h1 className="font-titulo text-2xl text-verde">Paz e bem, {user.nome.split(" ")[0]}!</h1>
 
       <Card title="Comunicados">
         {naoLidos.length === 0 ? <Empty>Nenhum comunicado novo para você.</Empty> : (
@@ -37,14 +37,14 @@ export default async function Inicio() {
             {naoLidos.slice(0, 3).map((a) => (
               <li key={a.id}>
                 <Link href={`/comunicados/${a.id}`} className="block min-h-12 py-2">
-                  <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-vinho" /><span className="font-medium">{a.titulo}</span>{a.prioridade !== "normal" && <Badge>{a.prioridade}</Badge>}</span>
+                  <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-verde" /><span className="font-medium">{a.titulo}</span>{a.prioridade !== "normal" && <Badge>{a.prioridade}</Badge>}</span>
                   <span className="line-clamp-1 text-sm text-tinta/60">{a.corpo}</span>
                 </Link>
               </li>
             ))}
           </ul>
         )}
-        {naoLidos.length > 3 && <Link href="/comunicados" className="mt-2 inline-block text-sm text-vinho underline">Ver todos ({naoLidos.length} não lidos)</Link>}
+        {naoLidos.length > 3 && <Link href="/comunicados" className="mt-2 inline-block text-sm text-verde underline">Ver todos ({naoLidos.length} não lidos)</Link>}
       </Card>
 
       <Card title="Próximos eventos">
@@ -56,7 +56,7 @@ export default async function Inicio() {
             </div>
           ))
         )}
-        <Link href="/eventos" className="text-sm text-vinho underline">Abrir agenda</Link>
+        <Link href="/eventos" className="text-sm text-verde underline">Abrir agenda</Link>
       </Card>
 
       <Card title="Minhas escalas">

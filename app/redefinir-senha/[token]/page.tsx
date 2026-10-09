@@ -20,7 +20,7 @@ export default async function Redefinir({ params }: { params: Promise<{ token: s
           <Field label="Confirmar senha"><input name="confirmar" type="password" autoComplete="new-password" required className={inputCls} /></Field>
         </ActionForm>
       )}
-      <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-sm text-vinho">Ir para o login</Link>
+      <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-sm text-verde">Ir para o login</Link>
     </PublicShell>
   );
 }

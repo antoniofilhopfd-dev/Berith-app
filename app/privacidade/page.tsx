@@ -10,7 +10,7 @@ export default function Privacidade() {
         <p>Você pode atualizar seus dados no perfil e pedir correção ou exclusão à coordenação geral. Dados de crianças e adolescentes exigem autorização dos responsáveis.</p>
         <p className="text-xs text-tinta/60">Texto-base para revisão pela coordenação e por assessoria jurídica antes da publicação.</p>
       </div>
-      <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-sm text-vinho">← Voltar</Link>
+      <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-sm text-verde">← Voltar</Link>
     </PublicShell>
   );
 }

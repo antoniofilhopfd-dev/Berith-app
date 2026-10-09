@@ -21,14 +21,14 @@ export default async function Comunicados() {
   const podePublicar = criarGlobal || unidades.length > 0;
   return (
     <div className="space-y-4">
-      <h1 className="font-titulo text-2xl text-vinho">Comunicados</h1>
+      <h1 className="font-titulo text-2xl text-verde">Comunicados</h1>
       {lista.length === 0 ? <Card><Empty>Nenhum comunicado para você no momento.</Empty></Card> : (
         <ul className="space-y-3">
           {lista.map((a) => (
             <li key={a.id}>
               <Link href={`/comunicados/${a.id}`} className={`block rounded-2xl border bg-cartao p-4 ${a.prioridade === "urgente" ? "border-red-300" : "border-borda"}`}>
                 <div className="flex flex-wrap items-center gap-1">
-                  {!a.lido_em && <span className="h-2 w-2 rounded-full bg-vinho" aria-label="não lido" />}
+                  {!a.lido_em && <span className="h-2 w-2 rounded-full bg-verde" aria-label="não lido" />}
                   {a.prioridade !== "normal" && <Badge>{a.prioridade}</Badge>}
                   <Badge>{a.unit_nome ?? "Toda a comunidade"}</Badge>
                 </div>

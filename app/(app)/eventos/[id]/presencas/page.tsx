@@ -30,9 +30,9 @@ export default async function Presencas({ params, searchParams }: { params: Prom
   const hoje = todayLocal();
   return (
     <div className="space-y-4">
-      <Link href={`/eventos/${id}?d=${data.date}`} className="inline-flex min-h-11 items-center text-sm text-vinho">← Evento</Link>
+      <Link href={`/eventos/${id}?d=${data.date}`} className="inline-flex min-h-11 items-center text-sm text-verde">← Evento</Link>
       <header>
-        <h1 className="font-titulo text-2xl text-vinho">Chamada</h1>
+        <h1 className="font-titulo text-2xl text-verde">Chamada</h1>
         <p className="text-sm">{ev.titulo} · {brDate(data.date)}{data.date === hoje ? " (hoje)" : ""}</p>
         <p className="mt-1"><Badge>{data.presentes} presente(s) de {data.total}</Badge></p>
       </header>
@@ -68,7 +68,7 @@ export default async function Presencas({ params, searchParams }: { params: Prom
           <input type="hidden" name="eventId" value={id} /><input type="hidden" name="date" value={data.date} />
           <Field label="E-mail"><input name="email" type="email" required className={inputCls} /></Field>
         </ActionForm>
-        <Link href={`/eventos/${id}/qr?d=${data.date}`} className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-vinho px-4 text-sm text-vinho">Mostrar QR Code de check-in</Link>
+        <Link href={`/eventos/${id}/qr?d=${data.date}`} className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-verde px-4 text-sm text-verde">Mostrar QR Code de check-in</Link>
       </Card>
       {editar && correcoes.length > 0 && (
         <Card title="Correções registradas">

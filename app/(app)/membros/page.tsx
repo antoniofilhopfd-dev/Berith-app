@@ -21,7 +21,7 @@ export default async function Membros({ searchParams }: { searchParams: Promise<
   const paginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
   return (
     <div className="space-y-4">
-      <h1 className="font-titulo text-2xl text-vinho">Membros</h1>
+      <h1 className="font-titulo text-2xl text-verde">Membros</h1>
 
       {pendentes.length > 0 && (
         <Card title={`Aguardando aprovação (${pendentes.length})`}>
@@ -43,7 +43,7 @@ export default async function Membros({ searchParams }: { searchParams: Promise<
       <Card title="Pessoas">
         <form className="mb-3 flex gap-2" role="search">
           <input name="q" defaultValue={q} placeholder="Buscar por nome ou e-mail" aria-label="Buscar" className={inputCls} />
-          <button className="min-h-11 rounded-lg bg-vinho px-4 text-sm text-white">Buscar</button>
+          <button className="min-h-11 rounded-lg bg-verde px-4 text-sm text-white">Buscar</button>
         </form>
         {itens.length === 0 ? <Empty>Nenhuma pessoa encontrada.</Empty> : (
           <ul className="divide-y divide-borda">
@@ -59,9 +59,9 @@ export default async function Membros({ searchParams }: { searchParams: Promise<
         )}
         {paginas > 1 && (
           <nav className="mt-3 flex items-center justify-between text-sm" aria-label="Paginação">
-            {page > 1 ? <Link href={`?q=${encodeURIComponent(q)}&p=${page - 1}`} className="min-h-11 content-center text-vinho">← Anterior</Link> : <span />}
+            {page > 1 ? <Link href={`?q=${encodeURIComponent(q)}&p=${page - 1}`} className="min-h-11 content-center text-verde">← Anterior</Link> : <span />}
             <span>Página {page} de {paginas}</span>
-            {page < paginas ? <Link href={`?q=${encodeURIComponent(q)}&p=${page + 1}`} className="min-h-11 content-center text-vinho">Próxima →</Link> : <span />}
+            {page < paginas ? <Link href={`?q=${encodeURIComponent(q)}&p=${page + 1}`} className="min-h-11 content-center text-verde">Próxima →</Link> : <span />}
           </nav>
         )}
       </Card>

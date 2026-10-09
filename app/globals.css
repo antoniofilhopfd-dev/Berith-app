@@ -1,26 +1,31 @@
 @import "tailwindcss";
 
 :root {
+  /* Paleta extraída da logo da comunidade: verde, cobre e marrom */
   --fundo: #faf6ef;
-  --tinta: #2a1a1f;
-  --vinho: #6b1d2e;
-  --vinho-escuro: #4a1220;
-  --ouro: #b8893a;
-  --borda: #e6dcc8;
+  --tinta: #3a2a26;
+  --verde: #587458;
+  --verde-escuro: #445a44;
+  --cobre: #b07840;
+  --marrom: #604038;
+  --borda: #e4dccb;
   --cartao: #ffffff;
 }
 
 @theme inline {
   --color-fundo: var(--fundo);
   --color-tinta: var(--tinta);
-  --color-vinho: var(--vinho);
-  --color-vinho-escuro: var(--vinho-escuro);
-  --color-ouro: var(--ouro);
+  --color-verde: var(--verde);
+  --color-verde-escuro: var(--verde-escuro);
+  --color-cobre: var(--cobre);
   --color-borda: var(--borda);
   --color-cartao: var(--cartao);
-  --font-titulo: Georgia, "Times New Roman", serif;
+  --font-titulo: ui-rounded, "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
 }
 
 html, body { background: var(--fundo); color: var(--tinta); overflow-x: hidden; }
 body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
 input, select, textarea, button { font-size: 16px; }
+
+/* Títulos em sans geométrica e negrito, como o logotipo */
+.font-titulo { font-weight: 700; letter-spacing: -0.01em; }

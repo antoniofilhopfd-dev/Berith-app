@@ -25,8 +25,8 @@ export default async function NovoEvento() {
   if (!alvos.comunidade && unidades.length === 0) notFound();
   return (
     <div className="space-y-4">
-      <Link href="/eventos" className="inline-flex min-h-11 items-center text-sm text-vinho">← Agenda</Link>
-      <h1 className="font-titulo text-2xl text-vinho">Novo evento</h1>
+      <Link href="/eventos" className="inline-flex min-h-11 items-center text-sm text-verde">← Agenda</Link>
+      <h1 className="font-titulo text-2xl text-verde">Novo evento</h1>
       <Card><EventoForm action={criarEventoAction} unidades={unidades} comunidade={alvos.comunidade} /></Card>
     </div>
   );

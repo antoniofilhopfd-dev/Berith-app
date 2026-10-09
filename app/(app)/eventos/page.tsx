@@ -11,10 +11,10 @@ type SP = { v?: string; d?: string };
 function Abas({ v, d }: { v: string; d: string }) {
   const abas = [["lista", "Lista"], ["semana", "Semana"], ["mes", "Mês"]];
   return (
-    <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl bg-vinho/10 p-1">
+    <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl bg-verde/10 p-1">
       {abas.map(([k, l]) => (
         <Link key={k} role="tab" aria-selected={v === k} href={`?v=${k}&d=${d}`}
-          className={`min-h-11 flex-1 content-center rounded-lg px-3 text-center text-sm ${v === k ? "bg-vinho text-white" : "text-vinho"}`}>{l}</Link>
+          className={`min-h-11 flex-1 content-center rounded-lg px-3 text-center text-sm ${v === k ? "bg-verde text-white" : "text-verde"}`}>{l}</Link>
       ))}
     </div>
   );
@@ -54,19 +54,19 @@ export default async function Eventos({ searchParams }: { searchParams: Promise<
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="font-titulo text-2xl text-vinho">Agenda</h1>
+        <h1 className="font-titulo text-2xl text-verde">Agenda</h1>
         {podeCriar && (
-          <Link href="/eventos/novo" className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-vinho px-3 text-sm text-white"><Plus size={16} aria-hidden /> Novo evento</Link>
+          <Link href="/eventos/novo" className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-verde px-3 text-sm text-white"><Plus size={16} aria-hidden /> Novo evento</Link>
         )}
       </div>
       <Abas v={v} d={d} />
       <div className="flex items-center justify-between">
-        <Link href={`?v=${v}&d=${prev}`} aria-label="Anterior" className="flex min-h-11 min-w-11 items-center justify-center text-vinho"><ChevronLeft /></Link>
+        <Link href={`?v=${v}&d=${prev}`} aria-label="Anterior" className="flex min-h-11 min-w-11 items-center justify-center text-verde"><ChevronLeft /></Link>
         <div className="text-center">
           <p className="font-medium">{titulo}</p>
-          {d !== hoje && <Link href={`?v=${v}`} className="text-xs text-vinho underline">Ir para hoje</Link>}
+          {d !== hoje && <Link href={`?v=${v}`} className="text-xs text-verde underline">Ir para hoje</Link>}
         </div>
-        <Link href={`?v=${v}&d=${next}`} aria-label="Próximo" className="flex min-h-11 min-w-11 items-center justify-center text-vinho"><ChevronRight /></Link>
+        <Link href={`?v=${v}&d=${next}`} aria-label="Próximo" className="flex min-h-11 min-w-11 items-center justify-center text-verde"><ChevronRight /></Link>
       </div>
 
       {v === "mes" && (
@@ -78,9 +78,9 @@ export default async function Eventos({ searchParams }: { searchParams: Promise<
               const n = porDia.get(dia)?.length ?? 0;
               return (
                 <Link key={dia} href={`?v=semana&d=${dia}`} aria-label={`${dia}: ${n} evento(s)`}
-                  className={`flex min-h-12 flex-col items-center rounded-lg pt-1 text-sm ${doMes ? "" : "text-tinta/30"} ${dia === hoje ? "bg-vinho text-white" : ""}`}>
+                  className={`flex min-h-12 flex-col items-center rounded-lg pt-1 text-sm ${doMes ? "" : "text-tinta/30"} ${dia === hoje ? "bg-verde text-white" : ""}`}>
                   {+dia.slice(8)}
-                  {n > 0 && <span className={`mt-0.5 rounded-full px-1.5 text-[10px] ${dia === hoje ? "bg-white text-vinho" : "bg-ouro/30 text-vinho"}`}>{n}</span>}
+                  {n > 0 && <span className={`mt-0.5 rounded-full px-1.5 text-[10px] ${dia === hoje ? "bg-white text-verde" : "bg-cobre/30 text-verde"}`}>{n}</span>}
                 </Link>
               );
             })}

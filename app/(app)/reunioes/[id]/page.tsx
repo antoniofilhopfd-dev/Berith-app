@@ -18,10 +18,10 @@ export default async function ReuniaoDetalhe({ params }: { params: Promise<{ id:
   const { reuniao: m, participantes, decisoes, gerencia } = d;
   return (
     <div className="space-y-4">
-      <Link href="/reunioes" className="inline-flex min-h-11 items-center text-sm text-vinho">← Reuniões</Link>
+      <Link href="/reunioes" className="inline-flex min-h-11 items-center text-sm text-verde">← Reuniões</Link>
       <header>
         <div className="flex gap-1"><Badge>{m.unit_nome}</Badge><Badge>{m.status}</Badge></div>
-        <h1 className="mt-1 font-titulo text-2xl text-vinho">{m.titulo}</h1>
+        <h1 className="mt-1 font-titulo text-2xl text-verde">{m.titulo}</h1>
         <p className="text-sm">{brDate(utcToLocal(m.inicio).date)} · {formatTime(m.inicio)}{m.fim && ` – ${formatTime(m.fim)}`}{m.local && ` · ${m.local}`}</p>
       </header>
       <Card title="Pauta">{m.pauta ? <p className="whitespace-pre-line text-sm">{m.pauta}</p> : <Empty>Sem pauta.</Empty>}</Card>

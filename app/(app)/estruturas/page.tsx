@@ -16,7 +16,7 @@ export default async function Estruturas() {
   const pais = units.filter((u) => u.ativo);
   return (
     <div className="space-y-4">
-      <h1 className="font-titulo text-2xl text-vinho">Estruturas</h1>
+      <h1 className="font-titulo text-2xl text-verde">Estruturas</h1>
       {grupos.length === 0 && <Card><Empty>Nenhuma estrutura cadastrada ainda.</Empty></Card>}
       {grupos.map((g) => (
         <Card key={g.tipo} title={TIPO_LABEL[g.tipo] + "s"}>

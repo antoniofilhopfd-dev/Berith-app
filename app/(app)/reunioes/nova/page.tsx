@@ -13,8 +13,8 @@ export default async function NovaReuniao() {
   if (unidades.length === 0) notFound();
   return (
     <div className="space-y-4">
-      <Link href="/reunioes" className="inline-flex min-h-11 items-center text-sm text-vinho">← Reuniões</Link>
-      <h1 className="font-titulo text-2xl text-vinho">Nova reunião</h1>
+      <Link href="/reunioes" className="inline-flex min-h-11 items-center text-sm text-verde">← Reuniões</Link>
+      <h1 className="font-titulo text-2xl text-verde">Nova reunião</h1>
       <Card>
         <ActionForm action={criarReuniaoAction} submit="Agendar reunião">
           <Field label="Estrutura"><select name="unitId" className={inputCls}>{unidades.map((u) => <option key={u.id} value={u.id}>{TIPO_LABEL[u.tipo]}: {u.nome}</option>)}</select></Field>

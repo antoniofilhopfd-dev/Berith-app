@@ -12,7 +12,7 @@ export default async function Escalas() {
   const [minhas, unidades, indisp] = await Promise.all([listMyAssignments(user.id, new Date()), listShiftUnits(user.id), myUnavailability(user.id)]);
   return (
     <div className="space-y-4">
-      <h1 className="font-titulo text-2xl text-vinho">Escalas</h1>
+      <h1 className="font-titulo text-2xl text-verde">Escalas</h1>
       <Card title="Minhas escalas">
         {minhas.length === 0 ? <Empty>Você não está escalado(a) nos próximos dias.</Empty> : (
           <ul className="divide-y divide-borda">

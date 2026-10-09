@@ -22,8 +22,8 @@ export default async function EscalasUnidade({ params }: { params: Promise<{ id:
   const [criar, exportar] = await Promise.all([can(user.id, "escalas", "criar", id), can(user.id, "escalas", "exportar", id)]);
   return (
     <div className="space-y-4">
-      <Link href="/escalas" className="inline-flex min-h-11 items-center text-sm text-vinho">← Escalas</Link>
-      <h1 className="font-titulo text-2xl text-vinho">{u.nome}</h1>
+      <Link href="/escalas" className="inline-flex min-h-11 items-center text-sm text-verde">← Escalas</Link>
+      <h1 className="font-titulo text-2xl text-verde">{u.nome}</h1>
       <Card title="Próximos 90 dias">
         {escalas.length === 0 ? <Empty>Nenhuma escala cadastrada.</Empty> : (
           <ul className="divide-y divide-borda">
@@ -36,7 +36,7 @@ export default async function EscalasUnidade({ params }: { params: Promise<{ id:
             ))}
           </ul>
         )}
-        {exportar && <a href={`/api/escalas/exportar?unit=${id}`} className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-vinho px-4 text-sm text-vinho">Exportar CSV (60 dias)</a>}
+        {exportar && <a href={`/api/escalas/exportar?unit=${id}`} className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-verde px-4 text-sm text-verde">Exportar CSV (60 dias)</a>}
       </Card>
       {criar && (
         <Card title="Nova escala">

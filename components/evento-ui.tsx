@@ -13,7 +13,7 @@ export function OcorrenciaItem({ o }: { o: Ocorrencia }) {
   return (
     <li>
       <Link href={`/eventos/${e.id}?d=${o.date}`} className="flex min-h-14 gap-3 py-2">
-        <span className="w-14 shrink-0 pt-0.5 text-sm font-medium text-vinho">{formatTime(o.inicio)}</span>
+        <span className="w-14 shrink-0 pt-0.5 text-sm font-medium text-verde">{formatTime(o.inicio)}</span>
         <span className="min-w-0 flex-1">
           <span className={`block font-medium ${o.cancelada ? "text-tinta/50 line-through" : ""}`}>{e.titulo}</span>
           <span className="block truncate text-xs text-tinta/60">{[e.local, e.unit_nome ?? "Toda a comunidade"].filter(Boolean).join(" · ")}</span>

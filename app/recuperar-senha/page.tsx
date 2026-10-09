@@ -9,7 +9,7 @@ export default function Recuperar() {
       <ActionForm action={solicitarRedefinicaoAction} submit="Enviar instruções">
         <Field label="E-mail"><input name="email" type="email" autoComplete="username" required className={inputCls} /></Field>
       </ActionForm>
-      <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-sm text-vinho">← Voltar ao login</Link>
+      <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-sm text-verde">← Voltar ao login</Link>
     </PublicShell>
   );
 }

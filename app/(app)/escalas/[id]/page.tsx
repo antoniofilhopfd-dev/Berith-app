@@ -21,10 +21,10 @@ export default async function EscalaDetalhe({ params }: { params: Promise<{ id: 
   const ativas = atribuicoes.filter((a) => a.status !== "substituido");
   return (
     <div className="space-y-4">
-      <Link href={`/escalas/unidade/${escala.unit_id}`} className="inline-flex min-h-11 items-center text-sm text-vinho">← {escala.unit_nome}</Link>
+      <Link href={`/escalas/unidade/${escala.unit_id}`} className="inline-flex min-h-11 items-center text-sm text-verde">← {escala.unit_nome}</Link>
       <header>
         <Badge>{escala.unit_nome}</Badge>{escala.cancelado_em && <> <Badge>cancelada</Badge></>}
-        <h1 className="mt-1 font-titulo text-2xl text-vinho">{escala.titulo}</h1>
+        <h1 className="mt-1 font-titulo text-2xl text-verde">{escala.titulo}</h1>
         <p className="text-sm">{brDate(utcToLocal(escala.inicio).date)} · {formatTime(escala.inicio)} – {formatTime(escala.fim)}</p>
         {escala.observacao && <p className="mt-1 text-sm text-tinta/70">{escala.observacao}</p>}
       </header>
@@ -46,7 +46,7 @@ export default async function EscalaDetalhe({ params }: { params: Promise<{ id: 
                 )}
                 {editar && !escala.cancelado_em && (
                   <details className="mt-2">
-                    <summary className="flex min-h-11 cursor-pointer items-center text-vinho">Substituir ou remover</summary>
+                    <summary className="flex min-h-11 cursor-pointer items-center text-verde">Substituir ou remover</summary>
                     <ActionForm action={substituirAction} submit="Substituir por" className="mt-2">
                       <input type="hidden" name="assignmentId" value={a.id} />
                       <Field label="E-mail do substituto"><input name="email" type="email" required className={inputCls} /></Field>

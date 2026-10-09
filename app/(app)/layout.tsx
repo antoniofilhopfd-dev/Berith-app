@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
@@ -21,8 +22,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ];
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col pb-20">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-vinho px-4 py-3 text-white">
-        <span className="font-titulo text-lg">Nova Berith</span>
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-verde px-4 py-3 text-white">
+        <span className="flex items-center gap-2"><Image src="/icons/icon-48.png" alt="" width={32} height={32} className="h-8 w-8 rounded-full" /><span className="font-titulo text-lg">Nova Berith</span></span>
         <form action={logoutAction}>
           <button className="min-h-11 rounded-lg px-3 text-sm hover:bg-white/10">Sair</button>
         </form>
@@ -32,8 +33,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <ul className="mx-auto flex max-w-3xl">
           {itens.map(({ href, label, icon: Icon, badge }) => (
             <li key={href} className="flex-1">
-              <Link href={href} className="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] text-vinho">
-                <span className="relative"><Icon size={20} aria-hidden />{badge ? <span className="absolute -right-2 -top-1 min-w-4 rounded-full bg-vinho px-1 text-center text-[10px] text-white" aria-label={`${badge} não lido(s)`}>{badge}</span> : null}</span> {label}
+              <Link href={href} className="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] text-verde">
+                <span className="relative"><Icon size={20} aria-hidden />{badge ? <span className="absolute -right-2 -top-1 min-w-4 rounded-full bg-verde px-1 text-center text-[10px] text-white" aria-label={`${badge} não lido(s)`}>{badge}</span> : null}</span> {label}
               </Link>
             </li>
           ))}

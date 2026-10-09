@@ -22,7 +22,7 @@ export default async function Checkin({ params }: { params: Promise<{ token: str
   return (
     <Card title="Check-in">
       <p role={msg.ok ? "status" : "alert"} className={`rounded-lg px-3 py-2 text-sm ${msg.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>{msg.texto}</p>
-      <Link href="/" className="mt-3 inline-flex min-h-11 items-center text-sm text-vinho">Ir para o início</Link>
+      <Link href="/" className="mt-3 inline-flex min-h-11 items-center text-sm text-verde">Ir para o início</Link>
     </Card>
   );
 }

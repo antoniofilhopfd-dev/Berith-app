@@ -47,14 +47,14 @@ export default async function EventoDetalhe({ params, searchParams }: { params: 
 
   return (
     <div className="space-y-4">
-      <Link href="/eventos" className="inline-flex min-h-11 items-center text-sm text-vinho">← Agenda</Link>
+      <Link href="/eventos" className="inline-flex min-h-11 items-center text-sm text-verde">← Agenda</Link>
       <header>
         <div className="flex flex-wrap gap-1">
           <Badge>{ev.unit_nome ?? "Toda a comunidade"}</Badge>
           {cancelada && <Badge>cancelado</Badge>}
           {ev.recorrencia !== "nenhuma" && <Badge>{ev.recorrencia === "semanal" ? "toda semana" : "todo mês"} até {brDate(String(ev.recorrencia_ate))}</Badge>}
         </div>
-        <h1 className={`mt-1 font-titulo text-2xl text-vinho ${cancelada ? "line-through opacity-60" : ""}`}>{ev.titulo}</h1>
+        <h1 className={`mt-1 font-titulo text-2xl text-verde ${cancelada ? "line-through opacity-60" : ""}`}>{ev.titulo}</h1>
         <p className="mt-1 text-sm">{tituloDia(occ.date)} · {horario(occ)}</p>
         {occ.fim && utcToLocal(occ.fim).date !== occ.date && <p className="text-sm text-tinta/70">Termina em {brDate(utcToLocal(occ.fim).date)} às {formatTime(occ.fim)}</p>}
         {ev.local && <p className="text-sm text-tinta/70">📍 {ev.local}</p>}
@@ -85,7 +85,7 @@ export default async function EventoDetalhe({ params, searchParams }: { params: 
         <Card title="Próximas datas">
           <div className="flex flex-wrap gap-2">
             {proximas.map((o) => (
-              <Link key={o.date} href={`/eventos/${id}?d=${o.date}`} className={`min-h-11 content-center rounded-lg border px-3 text-sm ${o.date === occ.date ? "border-vinho bg-vinho text-white" : "border-borda"}`}>{brDate(o.date).slice(0, 5)}</Link>
+              <Link key={o.date} href={`/eventos/${id}?d=${o.date}`} className={`min-h-11 content-center rounded-lg border px-3 text-sm ${o.date === occ.date ? "border-verde bg-verde text-white" : "border-borda"}`}>{brDate(o.date).slice(0, 5)}</Link>
             ))}
           </div>
         </Card>
@@ -101,8 +101,8 @@ export default async function EventoDetalhe({ params, searchParams }: { params: 
           {!cancelada && (
             <Card title="Gerenciar">
               <div className="mb-3 flex flex-wrap gap-2">
-                <Link href={`/eventos/${id}/editar`} className="inline-flex min-h-11 items-center rounded-lg border border-vinho px-4 text-sm text-vinho">Editar evento</Link>
-                <Link href={`/eventos/${id}/presencas?d=${occ.date}`} className="inline-flex min-h-11 items-center rounded-lg border border-vinho px-4 text-sm text-vinho">Chamada / presenças</Link>
+                <Link href={`/eventos/${id}/editar`} className="inline-flex min-h-11 items-center rounded-lg border border-verde px-4 text-sm text-verde">Editar evento</Link>
+                <Link href={`/eventos/${id}/presencas?d=${occ.date}`} className="inline-flex min-h-11 items-center rounded-lg border border-verde px-4 text-sm text-verde">Chamada / presenças</Link>
               </div>
               {podeExcluir && (
                 <div className="space-y-4">

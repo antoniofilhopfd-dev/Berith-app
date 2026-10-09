@@ -28,7 +28,7 @@ export default async function QrPage({ params, searchParams }: { params: Promise
   }
   return (
     <div className="space-y-4">
-      <Link href={`/eventos/${id}/presencas?d=${date}`} className="inline-flex min-h-11 items-center text-sm text-vinho">← Chamada</Link>
+      <Link href={`/eventos/${id}/presencas?d=${date}`} className="inline-flex min-h-11 items-center text-sm text-verde">← Chamada</Link>
       <Card title={`Check-in: ${ev.titulo}`}>
         <p className="mb-3 text-sm text-tinta/70">{brDate(date)} · Peça aos participantes que leiam o código com a câmera do celular e entrem com a própria conta. Vale só para esta data e por tempo limitado.</p>
         <div className="mx-auto w-fit rounded-xl border border-borda bg-white p-2" role="img" aria-label="QR Code de check-in" dangerouslySetInnerHTML={{ __html: svg }} />

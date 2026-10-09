@@ -18,8 +18,8 @@ export default async function EditarEvento({ params }: { params: Promise<{ id: s
   const i = utcToLocal(ev.inicio); const f = ev.fim ? utcToLocal(ev.fim) : null;
   return (
     <div className="space-y-4">
-      <Link href={`/eventos/${id}`} className="inline-flex min-h-11 items-center text-sm text-vinho">← Evento</Link>
-      <h1 className="font-titulo text-2xl text-vinho">Editar evento</h1>
+      <Link href={`/eventos/${id}`} className="inline-flex min-h-11 items-center text-sm text-verde">← Evento</Link>
+      <h1 className="font-titulo text-2xl text-verde">Editar evento</h1>
       <Card>
         <EventoForm action={editarEventoAction} editando unidades={[]} comunidade={false}
           valores={{ id, titulo: ev.titulo, descricao: ev.descricao, local: ev.local, data: i.date, horaInicio: i.time, dataFim: f?.date, horaFim: f?.time,

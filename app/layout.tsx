@@ -5,8 +5,10 @@ export const metadata: Metadata = {
   title: "Nova Berith",
   description: "Aplicativo da Comunidade Católica Nova Berith",
   robots: { index: false, follow: false },
+  icons: { icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "Nova Berith", statusBarStyle: "default" },
 };
-export const viewport: Viewport = { themeColor: "#6b1d2e", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#587458", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

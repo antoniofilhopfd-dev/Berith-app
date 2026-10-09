@@ -25,15 +25,15 @@ export default async function Mais() {
   ].filter((i) => i.show);
   return (
     <div className="space-y-4">
-      <h1 className="font-titulo text-2xl text-vinho">Mais</h1>
+      <h1 className="font-titulo text-2xl text-verde">Mais</h1>
       <Card className="p-0">
         <ul className="divide-y divide-borda">
           {itens.map(({ href, label, icon: Icon }) => (
-            <li key={href}><Link href={href} className="flex min-h-14 items-center gap-3 px-4"><Icon size={20} className="text-vinho" aria-hidden /><span className="flex-1">{label}</span><ChevronRight size={18} className="text-tinta/40" aria-hidden /></Link></li>
+            <li key={href}><Link href={href} className="flex min-h-14 items-center gap-3 px-4"><Icon size={20} className="text-verde" aria-hidden /><span className="flex-1">{label}</span><ChevronRight size={18} className="text-tinta/40" aria-hidden /></Link></li>
           ))}
         </ul>
       </Card>
-      <form action={logoutAction}><button className="min-h-11 w-full rounded-lg border border-borda bg-white text-sm text-vinho">Sair da conta</button></form>
+      <form action={logoutAction}><button className="min-h-11 w-full rounded-lg border border-borda bg-white text-sm text-verde">Sair da conta</button></form>
     </div>
   );
 }

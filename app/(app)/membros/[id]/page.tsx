@@ -24,9 +24,9 @@ export default async function Pessoa({ params }: { params: Promise<{ id: string 
   const globais = admin ? (await listRoles()).filter((r) => r.e_global) : [];
   return (
     <div className="space-y-4">
-      <Link href="/membros" className="inline-flex min-h-11 items-center text-sm text-vinho">← Membros</Link>
+      <Link href="/membros" className="inline-flex min-h-11 items-center text-sm text-verde">← Membros</Link>
       <header>
-        <h1 className="font-titulo text-2xl text-vinho">{d.pessoa.nome}</h1>
+        <h1 className="font-titulo text-2xl text-verde">{d.pessoa.nome}</h1>
         <p className="text-sm text-tinta/70">{d.pessoa.email}{d.pessoa.telefone && ` · ${d.pessoa.telefone}`}</p>
         <div className="mt-1 flex gap-2"><Badge>{d.pessoa.status}</Badge>{d.pessoa.situacao && <Badge>vínculo: {d.pessoa.situacao}</Badge>}</div>
       </header>
@@ -35,7 +35,7 @@ export default async function Pessoa({ params }: { params: Promise<{ id: string 
           <ul className="divide-y divide-borda text-sm">
             {d.vinculos.map((v) => (
               <li key={v.id} className="py-2">
-                <Link href={`/estruturas/${v.unit_id}`} className="font-medium text-vinho">{v.nome}</Link> ({TIPO_LABEL[v.tipo]})
+                <Link href={`/estruturas/${v.unit_id}`} className="font-medium text-verde">{v.nome}</Link> ({TIPO_LABEL[v.tipo]})
                 <p className="text-xs text-tinta/60">{v.funcao ?? "Integrante"} · {formatDate(v.inicio)}{v.fim ? ` a ${formatDate(v.fim)} (encerrado)` : " · ativo"}</p>
               </li>
             ))}

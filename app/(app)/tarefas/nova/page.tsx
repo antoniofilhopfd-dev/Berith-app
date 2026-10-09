@@ -13,8 +13,8 @@ export default async function NovaTarefa() {
   if (unidades.length === 0) notFound();
   return (
     <div className="space-y-4">
-      <Link href="/tarefas" className="inline-flex min-h-11 items-center text-sm text-vinho">← Tarefas</Link>
-      <h1 className="font-titulo text-2xl text-vinho">Nova tarefa</h1>
+      <Link href="/tarefas" className="inline-flex min-h-11 items-center text-sm text-verde">← Tarefas</Link>
+      <h1 className="font-titulo text-2xl text-verde">Nova tarefa</h1>
       <Card>
         <ActionForm action={criarTarefaAction} submit="Criar tarefa">
           <Field label="Estrutura"><select name="unitId" className={inputCls}>{unidades.map((u) => <option key={u.id} value={u.id}>{TIPO_LABEL[u.tipo]}: {u.nome}</option>)}</select></Field>

@@ -7,6 +7,6 @@ export function Card({ title, children, className = "" }: { title?: string; chil
   );
 }
 export const Badge = ({ children }: { children: React.ReactNode }) => (
-  <span className="rounded-full bg-vinho/10 px-2 py-0.5 text-xs text-vinho">{children}</span>
+  <span className="rounded-full bg-verde/10 px-2 py-0.5 text-xs text-verde">{children}</span>
 );
 export const Empty = ({ children }: { children: React.ReactNode }) => <p className="text-sm text-tinta/60">{children}</p>;

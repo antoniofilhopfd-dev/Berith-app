@@ -11,7 +11,7 @@ export default async function Perfil() {
   const ativos = vinculos.filter((v) => !v.fim);
   return (
     <div className="space-y-4">
-      <h1 className="font-titulo text-2xl text-vinho">Meu perfil</h1>
+      <h1 className="font-titulo text-2xl text-verde">Meu perfil</h1>
       <Card title="Meus dados">
         <p className="mb-3 text-sm"><strong>{pessoa.nome}</strong><br /><span className="text-tinta/70">{pessoa.email}</span></p>
         <ActionForm action={perfilAction} submit="Salvar" resetOnOk={false}>
@@ -26,7 +26,7 @@ export default async function Perfil() {
         )}
       </Card>
       <Card title="Privacidade">
-        <p className="text-sm text-tinta/70">Seus dados são usados apenas para a vida comunitária e visíveis somente às coordenações das estruturas em que você participa. <a href="/privacidade" className="text-vinho underline">Aviso de privacidade</a></p>
+        <p className="text-sm text-tinta/70">Seus dados são usados apenas para a vida comunitária e visíveis somente às coordenações das estruturas em que você participa. <a href="/privacidade" className="text-verde underline">Aviso de privacidade</a></p>
       </Card>
     </div>
   );
