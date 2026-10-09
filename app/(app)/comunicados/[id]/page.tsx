@@ -8,6 +8,7 @@ import { formatDate, formatTime } from "@/lib/format";
 import { Badge, Card } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
 import { confirmarLeituraAction, excluirComunicadoAction } from "../actions";
+import { Anexos } from "@/components/anexos";
 
 export default async function ComunicadoDetalhe({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -30,6 +31,7 @@ export default async function ComunicadoDetalhe({ params }: { params: Promise<{ 
         <p className="text-xs text-tinta/60">{a.autor} · {formatDate(a.publicar_em)} {formatTime(a.publicar_em)}{a.expira_em && ` · expira em ${formatDate(a.expira_em)}`}</p>
         <p className="mt-3 whitespace-pre-line text-sm">{a.corpo}</p>
       </header>
+      <Anexos actor={user.id} tipo="comunicado" ctxId={id} />
       {!agendado && (
         <Card>
           {a.lido_em ? <p className="text-sm text-green-800">✓ Você confirmou a leitura em {formatDate(a.lido_em)}.</p> : (

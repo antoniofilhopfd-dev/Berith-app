@@ -8,6 +8,7 @@ import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { brDate, utcToLocal } from "@/lib/time";
 import { formatTime } from "@/lib/format";
 import { comentarAction, editarTarefaAction, statusTarefaAction } from "../actions";
+import { Anexos } from "@/components/anexos";
 import { STATUS_LABEL } from "@/lib/format";
 
 export default async function TarefaDetalhe({ params }: { params: Promise<{ id: string }> }) {
@@ -44,8 +45,8 @@ export default async function TarefaDetalhe({ params }: { params: Promise<{ id: 
           <input type="hidden" name="id" value={id} />
           <Field label="Novo comentário"><textarea name="texto" required rows={2} maxLength={2000} className={inputCls + " resize-none py-2"} /></Field>
         </ActionForm>
-        <p className="mt-2 text-xs text-tinta/60">Anexos serão habilitados com o armazenamento seguro de arquivos (etapa 06).</p>
       </Card>
+      <Anexos actor={user.id} tipo="tarefa" ctxId={id} />
       {gerencia && (
         <Card title="Editar tarefa">
           <ActionForm action={editarTarefaAction} submit="Salvar" resetOnOk={false}>

@@ -75,7 +75,7 @@ export default async function Comunicados() {
               <Field label="Hora (24h)"><input name="publicarHora" type="time" className={inputCls} /></Field>
             </div>
             <Field label="Expira em (data, opcional)"><input name="expiraData" type="date" className={inputCls} /></Field>
-            <p className="text-xs text-tinta/60">Sem data de agendamento, o comunicado é publicado agora. Anexos serão habilitados com o armazenamento seguro de arquivos (etapa 06).</p>
+            <p className="text-xs text-tinta/60">Sem data de agendamento, o comunicado é publicado agora. Depois de publicar, abra o comunicado para anexar arquivos.</p>
           </ActionForm>
         </Card>
       )}

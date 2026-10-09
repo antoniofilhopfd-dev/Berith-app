@@ -103,5 +103,14 @@ for (const [tipo, titulo, texto] of [
   ["santo", "Exemplo de cadastro — santo do dia", "Texto de demonstração. Informe a biografia resumida e a fonte consultada."],
   ["laudes", "Exemplo de cadastro — Laudes", null],
 ]) await c.execute("INSERT INTO liturgia_itens (data, tipo, titulo, texto, fonte_nome, direitos, criado_por) VALUES (?,?,?,?,?,?,?)", [hojeISO, tipo, titulo, texto, fonteDemo, "Sem conteúdo protegido", mariana]);
+// ---- Formação (SOMENTE exemplos fictícios de demonstração; não são textos oficiais)
+const cont = async (unitId, categoria, titulo, resumo, corpo) => (await c.execute(
+  "INSERT INTO conteudos (unit_id, categoria, titulo, resumo, corpo, fonte_nome, direitos, criado_por) VALUES (?,?,?,?,?,?,?,?)",
+  [unitId, categoria, titulo, resumo, corpo, fonteDemo, "Sem conteúdo protegido", mariana]))[0].insertId;
+const cA = await cont(null, "oracao", "Exemplo de oração (demonstração)", "Texto de demonstração para mostrar o layout.", "Este é um texto de demonstração. As orações reais devem ser cadastradas por pessoa autorizada, com a fonte.");
+const cB = await cont(null, "catequese", "Exemplo de catequese (demonstração)", "Introdução fictícia ao tema.", "Conteúdo de demonstração sobre catequese.");
+const cC = await cont(mus, "formacao", "Exemplo de formação do Ministério de Música (demonstração)", "Visível somente para a Música.", "Conteúdo exclusivo da estrutura, apenas para demonstração.");
+const tr = (await c.execute("INSERT INTO trilhas (unit_id, titulo, descricao, criado_por) VALUES (NULL,?,?,?)", ["Trilha de iniciação (demonstração)", "Sequência de exemplo para mostrar o progresso.", mariana]))[0].insertId;
+for (const [i, id] of [cA, cB].entries()) await c.execute("INSERT INTO trilha_itens (trilha_id, conteudo_id, ordem) VALUES (?,?,?)", [tr, id, i + 1]);
 console.log("Seed concluído. Senha de todos: Demo-Senha-12345");
 await c.end();

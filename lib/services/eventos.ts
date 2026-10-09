@@ -206,3 +206,10 @@ export async function eventHistory(actor: number, id: number) {
 export { utcToLocal, todayLocal };
 
 export const hasPassed = (o: { inicio: Date; fim: Date | null }) => (o.fim ?? o.inicio).getTime() < Date.now();
+
+/** Eventos dos últimos 90 dias (e da próxima semana) que o usuário enxerga — usado para vincular álbuns. */
+export async function eventosRecentes(actor: number) {
+  const agora = Date.now();
+  const ocs = await listOccurrences(actor, new Date(agora - 90 * 86400_000), new Date(agora + 7 * 86400_000), 200);
+  return [...new Map(ocs.map((o) => [o.evento.id, o.evento])).values()].slice(0, 40);
+}
