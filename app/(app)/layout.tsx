@@ -22,8 +22,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ];
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col pb-20">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-verde px-4 py-3 text-white">
-        <span className="flex items-center gap-2"><Image src="/icons/icon-48.png" alt="" width={32} height={32} className="h-8 w-8 rounded-full" /><span className="font-titulo text-lg">Nova Berith</span></span>
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-verde px-4 py-2 text-white">
+        <Link href="/" aria-label="Nova Berith — início" className="flex min-h-11 items-center"><Image src="/brand/logo-branco.png" alt="Nova Berith — Comunidade Católica" width={900} height={544} priority className="h-[60px] w-auto" /></Link>
         <form action={logoutAction}>
           <button className="min-h-11 rounded-lg px-3 text-sm hover:bg-white/10">Sair</button>
         </form>

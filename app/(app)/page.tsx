@@ -37,7 +37,7 @@ export default async function Inicio() {
   const vinculos = perfil.vinculos.filter((v) => !v.fim);
   return (
     <section className="space-y-4">
-      <h1 className="font-titulo text-2xl text-verde">Paz e bem, {user.nome.split(" ")[0]}!</h1>
+      <h1 className="font-titulo text-2xl text-verde">Paz e alegria, {user.nome.split(" ")[0]}!</h1>
 
       <Card title="Liturgia de hoje">
         <Link href="/liturgia" className="block min-h-12">
