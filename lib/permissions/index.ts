@@ -49,7 +49,7 @@ export async function can(userId: number, recurso: Recurso, acao: Acao, unitId?:
   if (hasUnit && acao === "ver" && VISIVEL_AO_INTEGRANTE.includes(recurso)) {
     const m = await query<RowDataPacket>(
       `SELECT 1 AS ok FROM memberships
-       WHERE user_id = ? AND unit_id = ? AND inicio <= UTC_DATE() AND (fim IS NULL OR fim >= UTC_DATE()) LIMIT 1`,
+       WHERE user_id = ? AND unit_id = ? AND inicio <= UTC_DATE() AND (fim IS NULL OR fim > UTC_DATE()) LIMIT 1`,
       [userId, unitId],
     );
     return m.length > 0;
@@ -85,7 +85,7 @@ export async function accessibleUnitIds(userId: number, recurso: Recurso, acao: 
      UNION
      SELECT m.unit_id FROM memberships m
        WHERE ? = 'ver' AND ? IN ('eventos','comunicados','escalas','tarefas','reunioes','conteudos','midia')
-         AND m.user_id = ? AND m.inicio <= UTC_DATE() AND (m.fim IS NULL OR m.fim >= UTC_DATE())`,
+         AND m.user_id = ? AND m.inicio <= UTC_DATE() AND (m.fim IS NULL OR m.fim > UTC_DATE())`,
     [recurso, acao, userId, acao, recurso, userId],
   );
   return rows.map((r) => Number(r.id));

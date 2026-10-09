@@ -14,7 +14,8 @@ export default async function LoginPage() {
         <p className="mt-1 text-sm text-tinta/70">Comunidade Católica — acesso exclusivo para membros</p>
       </div>
       <LoginForm />
-      <p className="mt-6 text-center text-xs text-tinta/60">
+      <p className="mt-4 text-center text-sm"><a href="/recuperar-senha" className="inline-flex min-h-11 items-center text-vinho underline">Esqueci minha senha</a></p>
+      <p className="mt-2 text-center text-xs text-tinta/60">
         Não há cadastro aberto. O acesso é concedido por convite da coordenação.
       </p>
     </main>
