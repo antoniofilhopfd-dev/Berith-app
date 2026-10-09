@@ -1,0 +1,26 @@
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+coverage/
+# segredos e ambiente
+.env*
+!.env.example
+*.pem
+*.key
+credenciais*
+# logs, dumps, backups, temporários
+*.log
+*.sql.gz
+*.dump
+dumps/
+backups/
+tmp/
+.DS_Store
+# arquivos enviados (privados)
+storage/
+# gerado no prebuild
+lib/db/migrations.generated.ts
+# capturas de tela de verificação ficam versionadas em docs/prints

@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --fundo: #faf6ef;
+  --tinta: #2a1a1f;
+  --vinho: #6b1d2e;
+  --vinho-escuro: #4a1220;
+  --ouro: #b8893a;
+  --borda: #e6dcc8;
+  --cartao: #ffffff;
+}
+
+@theme inline {
+  --color-fundo: var(--fundo);
+  --color-tinta: var(--tinta);
+  --color-vinho: var(--vinho);
+  --color-vinho-escuro: var(--vinho-escuro);
+  --color-ouro: var(--ouro);
+  --color-borda: var(--borda);
+  --color-cartao: var(--cartao);
+  --font-titulo: Georgia, "Times New Roman", serif;
+}
+
+html, body { background: var(--fundo); color: var(--tinta); overflow-x: hidden; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+input, select, textarea, button { font-size: 16px; }
