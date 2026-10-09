@@ -44,6 +44,9 @@ const helio = await user("Hélio Prado", "helio@exemplo.com");
 await role(helio, "resp_servico", acolhida);
 await memb(helio, acolhida, "Responsável"); await memb(carla, acolhida, "Acolhedora");
 await c.execute("INSERT IGNORE INTO member_profiles (user_id) VALUES (?)", [helio]);
+const mariana = await user("Mariana Souto", "mariana@exemplo.com");
+await role(mariana, "resp_comunicacao");
+await c.execute("INSERT IGNORE INTO member_profiles (user_id) VALUES (?)", [mariana]);
 // Pendente aguardando aprovação para Música
 const pend = await user("Felipe Andrade", "felipe@exemplo.com", "pendente");
 const inv = (await c.execute("INSERT INTO invitations (email, nome, token_hash, convidado_por, expira_em, aceito_em) VALUES (?,?,?,?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 DAY), UTC_TIMESTAMP())",
@@ -92,5 +95,13 @@ await tk(mus, "Revisar o repertório da vigília", carla, 10, "baixa", "concluid
 const reu = (await c.execute("INSERT INTO meetings (unit_id, titulo, inicio, fim, local, pauta, criado_por) VALUES (?,?,?,?,?,?,?)",
   [mus, "Reunião do Ministério de Música", agoraMais(4, 20), agoraMais(4, 21, 30), "Sala 2", "1. Oração inicial\n2. Repertório do Advento\n3. Escala dos ensaios\n4. Assuntos gerais", ana]))[0].insertId;
 for (const u of [ana, carla]) await c.execute("INSERT INTO meeting_participants (meeting_id, user_id) VALUES (?,?)", [reu, u]);
+// ---- Liturgia: SOMENTE exemplos fictícios para demonstrar o layout (não é conteúdo litúrgico real)
+const hojeISO = new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+const fonteDemo = "Demonstração do sistema (conteúdo fictício)";
+for (const [tipo, titulo, texto] of [
+  ["evangelho", "Exemplo de cadastro — referência do Evangelho", "Este é um texto de demonstração para mostrar o layout da página. O conteúdo real deve ser cadastrado por pessoa autorizada, com a fonte e a autorização de uso."],
+  ["santo", "Exemplo de cadastro — santo do dia", "Texto de demonstração. Informe a biografia resumida e a fonte consultada."],
+  ["laudes", "Exemplo de cadastro — Laudes", null],
+]) await c.execute("INSERT INTO liturgia_itens (data, tipo, titulo, texto, fonte_nome, direitos, criado_por) VALUES (?,?,?,?,?,?,?)", [hojeISO, tipo, titulo, texto, fonteDemo, "Sem conteúdo protegido", mariana]);
 console.log("Seed concluído. Senha de todos: Demo-Senha-12345");
 await c.end();

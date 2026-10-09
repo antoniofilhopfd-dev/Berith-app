@@ -11,18 +11,26 @@ import { formatTime, STATUS_LABEL } from "@/lib/format";
 import { Badge, Card, Empty } from "@/components/ui";
 import { OcorrenciaItem, agruparPorDia, tituloDia } from "@/components/evento-ui";
 import { TIPO_LABEL } from "@/lib/format";
+import { diaLiturgico } from "@/lib/liturgia/calendario";
+import { itensDoDia } from "@/lib/services/liturgia";
+import { todayLocal } from "@/lib/time";
 
 export default async function Inicio() {
   const user = await requireUser();
   const agora = new Date();
-  const [ocs, avisos, perfil, escalas, tarefas, reunioes] = await Promise.all([
+  const hojeLocal = todayLocal();
+  const [ocs, avisos, perfil, escalas, tarefas, reunioes, litItens] = await Promise.all([
     listOccurrences(user.id, agora, new Date(agora.getTime() + 30 * 86400_000), 100),
     listForUser(user.id, 20),
     getPerson(user.id, user.id),
     listMyAssignments(user.id, agora, 5),
     listTasks(user.id, "minhas"),
     nextMeetings(user.id),
+    itensDoDia(hojeLocal),
   ]);
+  const dia = diaLiturgico(hojeLocal);
+  const evangelho = litItens.find((i) => i.tipo === "evangelho");
+  const santo = litItens.find((i) => i.tipo === "santo");
   const pendentes = tarefas.filter((t) => t.status === "aberta" || t.status === "em_andamento").slice(0, 4);
   const proximos = ocs.filter((o) => !o.cancelada).slice(0, 5);
   const naoLidos = avisos.filter((a) => !a.lido_em);
@@ -30,6 +38,16 @@ export default async function Inicio() {
   return (
     <section className="space-y-4">
       <h1 className="font-titulo text-2xl text-verde">Paz e bem, {user.nome.split(" ")[0]}!</h1>
+
+      <Card title="Liturgia de hoje">
+        <Link href="/liturgia" className="block min-h-12">
+          <span className="font-medium">{dia.titulo}</span>
+          <span className="block text-sm text-tinta/70">{dia.tempoNome} · cor {dia.cor} · ano {dia.cicloDominical}/{dia.cicloFerial}</span>
+          {evangelho && <span className="mt-1 block text-sm">Evangelho: {evangelho.titulo}</span>}
+          {santo && <span className="block text-sm">Santo do dia: {santo.titulo}</span>}
+          {!evangelho && !santo && <span className="mt-1 block text-sm text-tinta/60">Leituras, Liturgia das Horas e santo do dia ainda não cadastrados para hoje.</span>}
+        </Link>
+      </Card>
 
       <Card title="Comunicados">
         {naoLidos.length === 0 ? <Empty>Nenhum comunicado novo para você.</Empty> : (

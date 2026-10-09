@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { accessibleUnitIds, can } from "@/lib/permissions";
 import { Card } from "@/components/ui";
-import { CalendarClock, Users, Network, UserCircle, ChevronRight, ClipboardList } from "lucide-react";
+import { CalendarClock, Users, Network, UserCircle, ChevronRight, ClipboardList, BookOpen } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
 
 async function tem(uid: number, r: "estruturas" | "membros", a: "ver" | "criar" | "aprovar") {
@@ -17,6 +17,7 @@ export default async function Mais() {
     tem(user.id, "membros", "aprovar"), tem(user.id, "membros", "criar"), can(user.id, "estruturas", "criar"),
   ]);
   const itens = [
+    { href: "/liturgia", label: "Liturgia, Horas e santo do dia", icon: BookOpen, show: true },
     { href: "/escalas", label: "Escalas de serviço", icon: ClipboardList, show: true },
     { href: "/reunioes", label: "Reuniões", icon: CalendarClock, show: true },
     { href: "/estruturas", label: "Estruturas", icon: Network, show: estruturas || admin },
