@@ -40,6 +40,10 @@ await memb(ana, mus, "Coordenadora"); await memb(carla, mus, "Cantora"); await m
 await memb(bruno, lit, "Coordenador"); await memb(davi, acolhida, "Acolhedor");
 for (const u of [ana, bruno, carla, davi, fin]) await c.execute("INSERT IGNORE INTO member_profiles (user_id, telefone) VALUES (?, ?)", [u, "(11) 90000-000" + (u % 10)]);
 
+const helio = await user("Hélio Prado", "helio@exemplo.com");
+await role(helio, "resp_servico", acolhida);
+await memb(helio, acolhida, "Responsável"); await memb(carla, acolhida, "Acolhedora");
+await c.execute("INSERT IGNORE INTO member_profiles (user_id) VALUES (?)", [helio]);
 // Pendente aguardando aprovação para Música
 const pend = await user("Felipe Andrade", "felipe@exemplo.com", "pendente");
 const inv = (await c.execute("INSERT INTO invitations (email, nome, token_hash, convidado_por, expira_em, aceito_em) VALUES (?,?,?,?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 DAY), UTC_TIMESTAMP())",
@@ -70,5 +74,23 @@ await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, 
 await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, expira_em, criado_por) VALUES (NULL,?,?,?,UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(), INTERVAL 2 DAY),1)",
   ["Mudança de local da missa", "Por causa de obras, a missa desta semana será no salão paroquial.", "urgente"]);
 await c.execute("INSERT INTO announcement_reads (announcement_id, user_id) VALUES (?,?)", [com1, ana]);
+// ---- Escalas, tarefas, reuniões, presença
+const agoraMais = (n, h, m = 0) => dia(n, h, m);
+const shift = async (unitId, titulo, ini, fim) => (await c.execute("INSERT INTO shifts (unit_id, titulo, inicio, fim, criado_por) VALUES (?,?,?,?,?)", [unitId, titulo, ini, fim, helio]))[0].insertId;
+const s1 = await shift(acolhida, "Missa de domingo — 1ª celebração", agoraMais(3, 8), agoraMais(3, 10));
+await c.execute("INSERT INTO shift_assignments (shift_id, user_id, funcao, status) VALUES (?,?,?,?)", [s1, davi, "Porta principal", "confirmado"]);
+await c.execute("INSERT INTO shift_assignments (shift_id, user_id, funcao, status) VALUES (?,?,?,?)", [s1, carla, "Entrega de folhetos", "pendente"]);
+const s2 = await shift(acolhida, "Missa de domingo — 2ª celebração", agoraMais(3, 18), agoraMais(3, 20));
+await c.execute("INSERT INTO shift_assignments (shift_id, user_id, funcao, status) VALUES (?,?,?,?)", [s2, davi, "Porta principal", "pendente"]);
+await evento(mus, "Ensaio geral (hoje)", new Date(Date.now() - 30 * 60_000), new Date(Date.now() + 90 * 60_000), { local: "Salão paroquial", resp: ana });
+const tk = async (unitId, titulo, resp, prazoDias, prio, status = "aberta") => (await c.execute(
+  "INSERT INTO tasks (unit_id, titulo, descricao, prazo, prioridade, status, responsavel_id, criado_por) VALUES (?,?,?,?,?,?,?,?)",
+  [unitId, titulo, null, ate(prazoDias), prio, status, resp, ana]))[0].insertId;
+await tk(mus, "Preparar as partituras do Advento", carla, 3, "alta");
+await tk(mus, "Reservar o salão para o ensaio extra", ana, -2, "media", "em_andamento");
+await tk(mus, "Revisar o repertório da vigília", carla, 10, "baixa", "concluida");
+const reu = (await c.execute("INSERT INTO meetings (unit_id, titulo, inicio, fim, local, pauta, criado_por) VALUES (?,?,?,?,?,?,?)",
+  [mus, "Reunião do Ministério de Música", agoraMais(4, 20), agoraMais(4, 21, 30), "Sala 2", "1. Oração inicial\n2. Repertório do Advento\n3. Escala dos ensaios\n4. Assuntos gerais", ana]))[0].insertId;
+for (const u of [ana, carla]) await c.execute("INSERT INTO meeting_participants (meeting_id, user_id) VALUES (?,?)", [reu, u]);
 console.log("Seed concluído. Senha de todos: Demo-Senha-12345");
 await c.end();

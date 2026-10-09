@@ -4,7 +4,8 @@ import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const next = (await searchParams).next ?? "";
   if (await getSessionUser()) redirect("/");
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
@@ -13,7 +14,7 @@ export default async function LoginPage() {
         <h1 className="font-titulo text-3xl text-vinho">Nova Berith</h1>
         <p className="mt-1 text-sm text-tinta/70">Comunidade Católica — acesso exclusivo para membros</p>
       </div>
-      <LoginForm />
+      <LoginForm next={next} />
       <p className="mt-4 text-center text-sm"><a href="/recuperar-senha" className="inline-flex min-h-11 items-center text-vinho underline">Esqueci minha senha</a></p>
       <p className="mt-2 text-center text-xs text-tinta/60">
         Não há cadastro aberto. O acesso é concedido por convite da coordenação.

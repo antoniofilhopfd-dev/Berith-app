@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useEffect, useRef, useTransition } from "react";
 import type { ActionResult, FormAction } from "@/lib/auth/guard";
 
 export function ActionForm({
@@ -8,11 +8,21 @@ export function ActionForm({
 }: {
   action: FormAction; children?: React.ReactNode; submit: string; className?: string; resetOnOk?: boolean; danger?: boolean;
 }) {
-  const [state, run, pending] = useActionState<ActionResult, FormData>(action, {});
+  const [state, run, pendingAction] = useActionState<ActionResult, FormData>(action, {});
+  const [pendingTransition, startTransition] = useTransition();
   const ref = useRef<HTMLFormElement>(null);
+  const pending = pendingAction || pendingTransition;
+  // O React 19 limpa o formulário após cada action; aqui os campos só são limpos em caso de sucesso.
+  useEffect(() => {
+    if (state.ok && resetOnOk) ref.current?.reset();
+  }, [state, resetOnOk]);
   return (
-    <form ref={ref} action={async (fd) => { run(fd); }} className={`space-y-3 ${className}`}
-      onSubmit={() => { /* mantém valores até a resposta */ }}>
+    <form ref={ref} className={`space-y-3 ${className}`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+        startTransition(() => run(fd));
+      }}>
       {children}
       {state.erro && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{state.erro}</p>}
       {state.ok && <p role="status" className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{state.ok}</p>}

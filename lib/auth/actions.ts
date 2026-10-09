@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { authenticate } from "./login";
+import { safeNext } from "./constants";
 import { clientInfo, createSession, destroySession, getSessionUser } from "./session";
 import { loginSchema } from "@/lib/validation/auth";
 import { audit } from "@/lib/services/audit";
@@ -21,7 +22,7 @@ export async function loginAction(_prev: LoginState, form: FormData): Promise<Lo
     };
   }
   await createSession(r.userId);
-  redirect("/");
+  redirect(safeNext(form.get("next")));
 }
 
 export async function logoutAction() {

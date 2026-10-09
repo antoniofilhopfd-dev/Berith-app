@@ -2,34 +2,23 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
-import { accessibleUnitIds, can } from "@/lib/permissions";
-import { Home, Network, Users, UserCircle, CalendarDays, Megaphone } from "lucide-react";
+import { Home, CalendarDays, Megaphone, ListChecks, Menu } from "lucide-react";
 import { unreadCount } from "@/lib/services/comunicados";
+import { myOpenCount } from "@/lib/services/tarefas";
 
 export const dynamic = "force-dynamic";
-
-async function temAcesso(uid: number, r: "estruturas" | "membros", a: "ver" | "aprovar" | "criar") {
-  const ids = await accessibleUnitIds(uid, r, a);
-  return ids === "todas" || ids.length > 0;
-}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  const [nao, est, mem, memAprov, memCriar, admin] = await Promise.all([
-    unreadCount(user.id),
-    temAcesso(user.id, "estruturas", "ver"), temAcesso(user.id, "membros", "ver"),
-    temAcesso(user.id, "membros", "aprovar"), temAcesso(user.id, "membros", "criar"),
-    can(user.id, "estruturas", "criar"),
-  ]);
+  const [nao, tarefas] = await Promise.all([unreadCount(user.id), myOpenCount(user.id)]);
   const itens = [
-    { href: "/", label: "Início", icon: Home, show: true },
-    { href: "/eventos", label: "Agenda", icon: CalendarDays, show: true },
-    { href: "/comunicados", label: "Avisos", icon: Megaphone, show: true, badge: nao },
-    { href: "/estruturas", label: "Estruturas", icon: Network, show: est || admin },
-    { href: "/membros", label: "Membros", icon: Users, show: mem || memAprov || memCriar },
-    { href: "/perfil", label: "Perfil", icon: UserCircle, show: true },
-  ].filter((i) => i.show);
+    { href: "/", label: "Início", icon: Home, badge: 0 },
+    { href: "/eventos", label: "Agenda", icon: CalendarDays, badge: 0 },
+    { href: "/comunicados", label: "Avisos", icon: Megaphone, badge: nao },
+    { href: "/tarefas", label: "Tarefas", icon: ListChecks, badge: tarefas },
+    { href: "/mais", label: "Mais", icon: Menu, badge: 0 },
+  ];
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col pb-20">
       <header className="sticky top-0 z-10 flex items-center justify-between bg-vinho px-4 py-3 text-white">

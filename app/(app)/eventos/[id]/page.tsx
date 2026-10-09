@@ -100,7 +100,10 @@ export default async function EventoDetalhe({ params, searchParams }: { params: 
           </Card>
           {!cancelada && (
             <Card title="Gerenciar">
-              <Link href={`/eventos/${id}/editar`} className="mb-3 inline-flex min-h-11 items-center rounded-lg border border-vinho px-4 text-sm text-vinho">Editar evento</Link>
+              <div className="mb-3 flex flex-wrap gap-2">
+                <Link href={`/eventos/${id}/editar`} className="inline-flex min-h-11 items-center rounded-lg border border-vinho px-4 text-sm text-vinho">Editar evento</Link>
+                <Link href={`/eventos/${id}/presencas?d=${occ.date}`} className="inline-flex min-h-11 items-center rounded-lg border border-vinho px-4 text-sm text-vinho">Chamada / presenças</Link>
+              </div>
               {podeExcluir && (
                 <div className="space-y-4">
                   {ev.recorrencia !== "nenhuma" && (

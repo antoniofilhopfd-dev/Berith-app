@@ -14,3 +14,5 @@ export const PAPEL_LABEL: Record<string, string> = {
   coord_grupo: "Coordenação de grupo", resp_servico: "Responsável por serviço", resp_financeiro: "Responsável financeiro",
   resp_comunicacao: "Responsável por comunicação",
 };
+
+export const STATUS_LABEL: Record<string, string> = { aberta: "Aberta", em_andamento: "Em andamento", concluida: "Concluída", cancelada: "Cancelada" };

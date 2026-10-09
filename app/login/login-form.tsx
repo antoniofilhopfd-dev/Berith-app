@@ -3,10 +3,11 @@
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "@/lib/auth/actions";
 
-export function LoginForm() {
+export function LoginForm({ next = "" }: { next?: string }) {
   const [state, action, pendente] = useActionState<LoginState, FormData>(loginAction, {});
   return (
     <form action={action} className="space-y-4 rounded-2xl border border-borda bg-cartao p-5 shadow-sm">
+      <input type="hidden" name="next" value={next} />
       <label className="block">
         <span className="mb-1 block text-sm font-medium">E-mail</span>
         <input name="email" type="email" defaultValue={state.email ?? ""} autoComplete="username" required

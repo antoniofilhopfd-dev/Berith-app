@@ -11,8 +11,9 @@ export function proxy(req: NextRequest) {
   if (publico || !pathname || pathname.startsWith("/api/")) return NextResponse.next();
   if (!req.cookies.get(SESSION_COOKIE)?.value) {
     const url = req.nextUrl.clone();
+    const destino = pathname + req.nextUrl.search;
     url.pathname = "/login";
-    url.search = "";
+    url.search = destino.length < 400 && destino !== "/" ? `?next=${encodeURIComponent(destino)}` : "";
     return NextResponse.redirect(url);
   }
   return NextResponse.next();
