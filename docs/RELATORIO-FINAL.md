@@ -18,7 +18,7 @@ Identidade: logo e paleta (verde, cobre e marrom) extraídas da logo enviada; í
 
 ## 2. Verificações realizadas (reais, neste ambiente)
 - **291 testes automatizados** (24 arquivos) contra **MariaDB 10.11 real**: todos passam.
-- **146 verificações no navegador** (Chromium, 390 px e emulação de iPhone 13), em 6 fluxos ponta a ponta com vários usuários: todas passam. **~280 capturas de tela** em `docs/prints/`.
+- **146 verificações no navegador** (Chromium, 390 px e emulação de iPhone 13), em 6 fluxos ponta a ponta com vários usuários: todas passam. **99 capturas de tela** em `docs/prints/`.
 - `tsc --noEmit` e `eslint`: sem erros (2 avisos de estilo em arquivos de configuração).
 - **Build de produção** e **suíte completa também em Node 20.20** (versão mínima); servidor de produção em Node 20 passou no fluxo financeiro/PWA.
 - `npm audit --omit=dev`: **0 vulnerabilidades** (Nodemailer atualizado para 10.0.16 após o achado).
