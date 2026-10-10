@@ -6,6 +6,7 @@ import type { EventoInput } from "@/lib/validation/eventos";
 import { occurrences, isOccurrence, type Occurrence } from "./recorrencia";
 import { DomainError, NotFoundError } from "./errors";
 import { audit } from "./audit";
+import { destinatarios, notificar, notificarSeguro } from "./notificacoes";
 
 export type Evento = {
   id: number; unit_id: number | null; unit_nome: string | null; titulo: string; descricao: string | null; local: string | null;
@@ -121,6 +122,7 @@ export async function createEvent(actor: number, d: EventoInput) {
     [d.unitId, d.titulo, d.descricao, d.local, inicio, fim, resp, d.limite, d.lembreteMin, d.recorrencia, d.recorrencia === "nenhuma" ? null : d.recorrenciaAte, actor]);
   await log(r.insertId, actor, "criado");
   await audit(actor, "evento.criar", { entidade: "event", entidadeId: r.insertId });
+  await notificarSeguro(async () => notificar(await destinatarios(d.unitId, [actor]), { tipo: "evento", titulo: "Novo evento", corpo: d.titulo, url: `/eventos/${r.insertId}`, dedupeKey: `evento:novo:${r.insertId}` }));
   return r.insertId;
 }
 
@@ -148,6 +150,7 @@ export async function cancelEvent(actor: number, id: number, motivo: string | nu
   await execute("UPDATE events SET cancelado_em = UTC_TIMESTAMP(), cancelado_motivo = ? WHERE id = ? AND cancelado_em IS NULL", [motivo, id]);
   await log(id, actor, "cancelado", { motivo });
   await audit(actor, "evento.cancelar", { entidade: "event", entidadeId: id });
+  await notificarSeguro(async () => notificar(await destinatarios(ev.unit_id, [actor]), { tipo: "evento", titulo: "Evento cancelado", corpo: ev.titulo, url: `/eventos/${id}`, dedupeKey: `evento:cancelado:${id}` }));
 }
 
 export async function cancelOccurrence(actor: number, id: number, date: string, motivo: string | null) {

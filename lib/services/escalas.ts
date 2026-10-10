@@ -6,6 +6,8 @@ import type { z } from "zod";
 import type { escalaSchema } from "@/lib/validation/organizacao";
 import { DomainError, NotFoundError } from "./errors";
 import { audit } from "./audit";
+import { destinatarios, notificar, notificarSeguro } from "./notificacoes";
+import { celula as cell } from "@/lib/csv";
 
 export type Escala = { id: number; unit_id: number; unit_nome: string; titulo: string; inicio: Date; fim: Date; observacao: string | null; cancelado_em: Date | null };
 export type Atribuicao = { id: number; shift_id: number; user_id: number; nome: string; funcao: string | null; status: string; motivo: string | null };
@@ -105,6 +107,7 @@ export async function assign(actor: number, shiftId: number, email: string, func
   if (ja[0]) await execute("UPDATE shift_assignments SET status='pendente', funcao=?, motivo=NULL WHERE id = ?", [funcao, ja[0].id]);
   else await execute("INSERT INTO shift_assignments (shift_id, user_id, funcao) VALUES (?,?,?)", [shiftId, userId, funcao]);
   await audit(actor, "escala.escalar", { entidade: "shift", entidadeId: shiftId, detalhes: { userId, funcao } });
+  await notificarSeguro(() => notificar([userId], { tipo: "escala", titulo: "Você foi escalado(a)", corpo: escala.titulo, url: `/escalas/${shiftId}`, dedupeKey: `escala:${shiftId}:${userId}:${Date.now()}` }));
 }
 
 export async function respond(actor: number, assignmentId: number, status: "confirmado" | "recusado", motivo: string | null) {
@@ -137,6 +140,7 @@ export async function substitute(actor: number, assignmentId: number, email: str
       [escala.id, novo, a[0].funcao, assignmentId]);
   });
   await audit(actor, "escala.substituir", { entidade: "shift_assignment", entidadeId: assignmentId, detalhes: { novo } });
+  await notificarSeguro(() => notificar([novo], { tipo: "escala", titulo: "Você foi escalado(a) (substituição)", corpo: escala.titulo, url: `/escalas/${escala.id}`, dedupeKey: `escala:${escala.id}:${novo}:${Date.now()}` }));
 }
 
 export async function unassign(actor: number, assignmentId: number) {
@@ -158,12 +162,6 @@ export async function clearUnavailable(actor: number, date: string) {
 export const myUnavailability = (actor: number) =>
   query<RowDataPacket & { data: string; nota: string | null }>("SELECT data, nota FROM user_unavailability WHERE user_id = ? AND data >= UTC_DATE() ORDER BY data", [actor]);
 
-/** CSV com proteção contra injeção de fórmulas em planilhas. */
-const cell = (v: unknown) => {
-  let s = v == null ? "" : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
-  return `"${s.replace(/"/g, '""')}"`;
-};
 export async function exportCsv(actor: number, unitId: number, from: Date, to: Date) {
   await assertCan(actor, "escalas", "exportar", unitId);
   const rows = await query<RowDataPacket>(

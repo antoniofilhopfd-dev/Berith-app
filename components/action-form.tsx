@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useTransition } from "react";
 import type { ActionResult, FormAction } from "@/lib/auth/guard";
+import { useHidratado } from "./hidratado";
 
 export function ActionForm({
   action, children, submit, className = "", resetOnOk = true, danger = false,
@@ -12,12 +13,13 @@ export function ActionForm({
   const [pendingTransition, startTransition] = useTransition();
   const ref = useRef<HTMLFormElement>(null);
   const pending = pendingAction || pendingTransition;
+  const pronto = useHidratado();
   // O React 19 limpa o formulário após cada action; aqui os campos só são limpos em caso de sucesso.
   useEffect(() => {
     if (state.ok && resetOnOk) ref.current?.reset();
   }, [state, resetOnOk]);
   return (
-    <form ref={ref} className={`space-y-3 ${className}`}
+    <form ref={ref} method="post" className={`space-y-3 ${className}`}
       onSubmit={(e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
@@ -33,7 +35,7 @@ export function ActionForm({
             className="min-h-11 w-full rounded border border-borda bg-white px-2 text-xs" aria-label="Link gerado" />
         </div>
       )}
-      <button type="submit" disabled={pending}
+      <button type="submit" disabled={pending || !pronto}
         className={`min-h-11 rounded-lg px-4 text-sm font-medium text-white disabled:opacity-60 ${danger ? "bg-red-700 hover:bg-red-800" : "bg-verde hover:bg-verde-escuro"}`}>
         {pending ? "Aguarde…" : submit}
       </button>

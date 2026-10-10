@@ -6,6 +6,7 @@ import type { z } from "zod";
 import type { comunicadoSchema } from "@/lib/validation/eventos";
 import { DomainError, NotFoundError } from "./errors";
 import { audit } from "./audit";
+import { destinatarios, notificar, notificarSeguro } from "./notificacoes";
 
 export type Comunicado = {
   id: number; unit_id: number | null; unit_nome: string | null; titulo: string; corpo: string;
@@ -72,6 +73,9 @@ export async function createComunicado(actor: number, d: z.infer<typeof comunica
     "INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, expira_em, criado_por) VALUES (?,?,?,?,?,?,?)",
     [d.unitId, d.titulo, d.corpo, d.prioridade, publicar, expira, actor]);
   await audit(actor, "comunicado.criar", { entidade: "announcement", entidadeId: r.insertId, detalhes: { unitId: d.unitId, prioridade: d.prioridade } });
+  await notificarSeguro(async () => notificar(await destinatarios(d.unitId, [actor]), {
+    tipo: "comunicado", titulo: d.prioridade === "normal" ? "Novo comunicado" : `Novo comunicado (${d.prioridade})`, corpo: d.titulo,
+    url: `/comunicados/${r.insertId}`, dedupeKey: `comunicado:${r.insertId}`, agendadaPara: publicar }));
   return r.insertId;
 }
 

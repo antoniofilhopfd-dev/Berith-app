@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Pwa } from "@/components/pwa";
 
 export const metadata: Metadata = {
   title: "Nova Berith",
@@ -13,7 +14,7 @@ export const viewport: Viewport = { themeColor: "#587458", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">{children}<Pwa /></body>
     </html>
   );
 }

@@ -5,6 +5,7 @@ import type { z } from "zod";
 import type { tarefaSchema } from "@/lib/validation/organizacao";
 import { DomainError, NotFoundError } from "./errors";
 import { audit } from "./audit";
+import { destinatarios, notificar, notificarSeguro } from "./notificacoes";
 
 export type Tarefa = {
   id: number; unit_id: number; unit_nome: string; titulo: string; descricao: string | null; prazo: string | null;
@@ -63,6 +64,7 @@ export async function createTask(actor: number, d: z.infer<typeof tarefaSchema>,
     [d.unitId, d.titulo, d.descricao, d.prazo ?? null, d.prioridade, resp, meetingId, actor]);
   await hist(r.insertId, actor, "criada", meetingId ? "gerada a partir de reunião" : undefined);
   await audit(actor, "tarefa.criar", { entidade: "task", entidadeId: r.insertId });
+  if (resp && resp !== actor) await notificarSeguro(() => notificar([resp], { tipo: "tarefa", titulo: "Nova tarefa para você", corpo: d.titulo, url: `/tarefas/${r.insertId}`, dedupeKey: `tarefa:${r.insertId}:atribuida:${resp}` }));
   return r.insertId;
 }
 
@@ -72,6 +74,7 @@ export async function updateTask(actor: number, id: number, d: Pick<z.infer<type
   const resp = d.responsavelEmail ? await resolveResponsavel(tarefa.unit_id, d.responsavelEmail) : tarefa.responsavel_id;
   await execute("UPDATE tasks SET titulo=?, descricao=?, prazo=?, prioridade=?, responsavel_id=? WHERE id=?", [d.titulo, d.descricao, d.prazo ?? null, d.prioridade, resp, id]);
   await hist(id, actor, "editada");
+  if (resp && resp !== tarefa.responsavel_id && resp !== actor) await notificarSeguro(() => notificar([resp], { tipo: "tarefa", titulo: "Tarefa atribuída a você", corpo: d.titulo, url: `/tarefas/${id}`, dedupeKey: `tarefa:${id}:atribuida:${resp}` }));
 }
 
 /** Gestor ou o próprio responsável alteram o andamento. */

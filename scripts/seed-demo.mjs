@@ -112,5 +112,18 @@ const cB = await cont(null, "catequese", "Exemplo de catequese (demonstração)"
 const cC = await cont(mus, "formacao", "Exemplo de formação do Ministério de Música (demonstração)", "Visível somente para a Música.", "Conteúdo exclusivo da estrutura, apenas para demonstração.");
 const tr = (await c.execute("INSERT INTO trilhas (unit_id, titulo, descricao, criado_por) VALUES (NULL,?,?,?)", ["Trilha de iniciação (demonstração)", "Sequência de exemplo para mostrar o progresso.", mariana]))[0].insertId;
 for (const [i, id] of [cA, cB].entries()) await c.execute("INSERT INTO trilha_itens (trilha_id, conteudo_id, ordem) VALUES (?,?,?)", [tr, id, i + 1]);
+// ---- Financeiro: mês passado aprovado (valores fictícios); Elisa lança, o administrador aprova
+const mesPassado = new Date(Date.now() - 3 * 3600_000); mesPassado.setUTCMonth(mesPassado.getUTCMonth() - 1, 12);
+const dMP = (d) => `${mesPassado.getUTCFullYear()}-${String(mesPassado.getUTCMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+const [[conta]] = await c.execute("SELECT id FROM fin_contas ORDER BY id LIMIT 1");
+const cat = async (nome, tipo) => (await c.execute("SELECT id FROM fin_categorias WHERE nome = ? AND tipo = ?", [nome, tipo]))[0][0].id;
+const lan = async (tipo, categoria, centavos, dia, desc, doador = null) => c.execute(
+  "INSERT INTO fin_lancamentos (conta_id, categoria_id, tipo, valor_centavos, data, descricao, doador_user_id, status, criado_por, aprovado_por, aprovado_em) VALUES (?,?,?,?,?,?,?, 'aprovado', ?, 1, UTC_TIMESTAMP())",
+  [conta.id, await cat(categoria, tipo), tipo, centavos, dMP(dia), desc, doador, fin]);
+await lan("entrada", "Contribuição", 120000, 3, "Contribuições do mês", carla);
+await lan("entrada", "Doação", 45000, 8, "Doação para a casa de retiros");
+await lan("entrada", "Oferta / coleta", 83050, 15, "Coletas das celebrações");
+await lan("saida", "Manutenção", 32075, 10, "Conserto da porta do salão");
+await lan("saida", "Material litúrgico", 21500, 18, "Velas e toalhas");
 console.log("Seed concluído. Senha de todos: Demo-Senha-12345");
 await c.end();

@@ -3,7 +3,7 @@ import { query } from "@/lib/db";
 
 export const RECURSOS = [
   "eventos", "membros", "estruturas", "comunicados", "escalas", "presencas",
-  "tarefas", "reunioes", "conteudos", "midia", "financeiro",
+  "tarefas", "reunioes", "conteudos", "midia", "financeiro", "contribuicoes",
 ] as const;
 export const ACOES = ["ver", "criar", "editar", "excluir", "aprovar", "exportar", "integrantes", "permissoes"] as const;
 export type Recurso = (typeof RECURSOS)[number];

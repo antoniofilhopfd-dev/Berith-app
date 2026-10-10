@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputCls } from "./action-form";
+import { useHidratado } from "./hidratado";
 
 type Resultado = { nome: string; ok: boolean; msg: string };
 
@@ -11,6 +12,7 @@ export function UploadBox({ ctxTipo, ctxId, aceitar = "image/jpeg,image/png,imag
   ctxTipo: string; ctxId: number; aceitar?: string; exigeAutorizacaoImagem?: boolean; comDescricao?: boolean; rotulo?: string;
 }) {
   const router = useRouter();
+  const pronto = useHidratado();
   const ref = useRef<HTMLFormElement>(null);
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState(0);
@@ -76,7 +78,7 @@ export function UploadBox({ ctxTipo, ctxId, aceitar = "image/jpeg,image/png,imag
           <span>Confirmo que há autorização de uso de imagem das pessoas fotografadas e, no caso de crianças e adolescentes, dos responsáveis.</span>
         </label>
       )}
-      <button type="submit" disabled={enviando} className="min-h-11 rounded-lg bg-verde px-4 text-sm font-medium text-white disabled:opacity-60">{enviando ? "Enviando…" : "Enviar"}</button>
+      <button type="submit" disabled={enviando || !pronto} className="min-h-11 rounded-lg bg-verde px-4 text-sm font-medium text-white disabled:opacity-60">{enviando ? "Enviando…" : "Enviar"}</button>
       {enviando && (
         <div role="progressbar" aria-valuenow={progresso} aria-valuemin={0} aria-valuemax={100} aria-label={`Enviando ${atual}`}>
           <p className="mb-1 truncate text-xs text-tinta/70">{atual} — {progresso}%</p>

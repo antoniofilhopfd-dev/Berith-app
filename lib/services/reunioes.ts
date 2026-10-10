@@ -7,6 +7,7 @@ import type { decisaoSchema, reuniaoSchema } from "@/lib/validation/organizacao"
 import { createTask } from "./tarefas";
 import { DomainError, NotFoundError } from "./errors";
 import { audit } from "./audit";
+import { destinatarios, notificar, notificarSeguro } from "./notificacoes";
 
 export type Reuniao = { id: number; unit_id: number; unit_nome: string; titulo: string; inicio: Date; fim: Date | null; local: string | null; pauta: string | null; ata: string | null; status: "agendada" | "realizada" | "cancelada" };
 const SEL = `SELECT m.*, o.nome AS unit_nome FROM meetings m JOIN org_units o ON o.id = m.unit_id`;
@@ -51,6 +52,10 @@ export async function createMeeting(actor: number, d: z.infer<typeof reuniaoSche
     return r.insertId;
   });
   await audit(actor, "reuniao.criar", { entidade: "meeting", entidadeId: id });
+  await notificarSeguro(async () => {
+    const p = await query<RowDataPacket>("SELECT user_id FROM meeting_participants WHERE meeting_id = ? AND user_id <> ?", [id, actor]);
+    await notificar(p.map((x) => Number(x.user_id)), { tipo: "reuniao", titulo: "Nova reunião", corpo: d.titulo, url: `/reunioes/${id}`, dedupeKey: `reuniao:${id}` });
+  });
   return id;
 }
 

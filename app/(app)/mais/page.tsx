@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { accessibleUnitIds, can } from "@/lib/permissions";
 import { Card } from "@/components/ui";
-import { CalendarClock, Users, Network, UserCircle, ChevronRight, ClipboardList, BookOpen, GraduationCap, Images } from "lucide-react";
+import { naoLidas } from "@/lib/services/notificacoes";
+import { CalendarClock, Users, Network, UserCircle, ChevronRight, ClipboardList, BookOpen, GraduationCap, Images, Wallet, Bell, Scale } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
 
 async function tem(uid: number, r: "estruturas" | "membros", a: "ver" | "criar" | "aprovar") {
@@ -12,7 +13,8 @@ async function tem(uid: number, r: "estruturas" | "membros", a: "ver" | "criar" 
 
 export default async function Mais() {
   const user = await requireUser();
-  const [estruturas, membros, aprov, criar, admin] = await Promise.all([
+  const [financeiro, estruturas, membros, aprov, criar, admin] = await Promise.all([
+    can(user.id, "financeiro", "ver", null),
     tem(user.id, "estruturas", "ver"), tem(user.id, "membros", "ver"),
     tem(user.id, "membros", "aprovar"), tem(user.id, "membros", "criar"), can(user.id, "estruturas", "criar"),
   ]);
@@ -24,6 +26,9 @@ export default async function Mais() {
     { href: "/reunioes", label: "Reuniões", icon: CalendarClock, show: true },
     { href: "/estruturas", label: "Estruturas", icon: Network, show: estruturas || admin },
     { href: "/membros", label: "Membros", icon: Users, show: membros || aprov || criar },
+    { href: "/financeiro", label: "Financeiro", icon: Wallet, show: financeiro },
+    { href: "/prestacao-de-contas", label: "Prestação de contas", icon: Scale, show: true },
+    { href: "/notificacoes", label: "Notificações e preferências", icon: Bell, show: true },
     { href: "/perfil", label: "Meu perfil", icon: UserCircle, show: true },
   ].filter((i) => i.show);
   return (

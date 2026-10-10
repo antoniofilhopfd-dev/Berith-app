@@ -12,13 +12,13 @@ import { getTask } from "./tarefas";
 import { DomainError, NotFoundError } from "./errors";
 import { audit } from "./audit";
 
-export type CtxTipo = "comunicado" | "tarefa" | "conteudo" | "album" | "documento";
-export const CTX_TIPOS: readonly CtxTipo[] = ["comunicado", "tarefa", "conteudo", "album", "documento"];
+export type CtxTipo = "comunicado" | "tarefa" | "conteudo" | "album" | "documento" | "lancamento";
+export const CTX_TIPOS: readonly CtxTipo[] = ["comunicado", "tarefa", "conteudo", "album", "documento", "lancamento"];
 export type Arquivo = {
   id: number; arquivo: string; nome_original: string; mime: string; tamanho: number; ctx_tipo: CtxTipo; ctx_id: number;
   descricao: string | null; autorizacao_imagem: number; criado_por: number; criado_em: Date;
 };
-const MAX_POR_CONTEXTO: Record<CtxTipo, number> = { comunicado: 10, tarefa: 20, conteudo: 20, album: 300, documento: 500 };
+const MAX_POR_CONTEXTO: Record<CtxTipo, number> = { comunicado: 10, tarefa: 20, conteudo: 20, album: 300, documento: 500, lancamento: 5 };
 
 type Dono = { unitId: number | null; permitirDownload: boolean };
 
@@ -32,6 +32,12 @@ async function dono(actor: number, tipo: CtxTipo, id: number): Promise<Dono> {
       const r = await query<RowDataPacket>("SELECT unit_id, permitir_download FROM albums WHERE id = ?", [id]);
       if (!r[0] || (r[0].unit_id != null && !(await can(actor, "midia", "ver", r[0].unit_id)))) throw new NotFoundError();
       return { unitId: r[0].unit_id, permitirDownload: Boolean(r[0].permitir_download) };
+    }
+    case "lancamento": {
+      // Comprovante financeiro: só quem vê o financeiro (acesso independente dos vínculos organizacionais).
+      const r = await query<RowDataPacket>("SELECT 1 x FROM fin_lancamentos WHERE id = ?", [id]);
+      if (!r[0] || !(await can(actor, "financeiro", "ver", null))) throw new NotFoundError();
+      return { unitId: null, permitirDownload: true };
     }
     case "documento": {
       const unitId = id === 0 ? null : id; // ctx_id 0 = biblioteca da comunidade
@@ -49,6 +55,12 @@ async function podeGerir(actor: number, tipo: CtxTipo, ctxId: number, d: Dono, a
     case "comunicado": return can(actor, "comunicados", "editar", d.unitId);
     case "conteudo": return can(actor, "conteudos", "editar", d.unitId);
     case "album": case "documento": return can(actor, "midia", acao === "subir" ? "criar" : "excluir", d.unitId);
+    case "lancamento": {
+      if (acao === "subir") return can(actor, "financeiro", "criar", null);
+      // Comprovante de lançamento aprovado é imutável (trilha de auditoria); antes disso, quem edita pode remover.
+      const l = await query<RowDataPacket>("SELECT status FROM fin_lancamentos WHERE id = ?", [ctxId]);
+      return l[0]?.status !== "aprovado" && (await can(actor, "financeiro", "editar", null));
+    }
     case "tarefa": {
       if (await can(actor, "tarefas", "editar", d.unitId)) return true;
       const t = await getTask(actor, ctxId);
@@ -75,7 +87,7 @@ export async function enviarArquivo(actor: number, o: { tipo: CtxTipo; ctxId: nu
   const tipo = detectarTipo(o.dados);
   if (!tipo) throw new DomainError(`Tipo de arquivo não permitido. Envie ${EXTENSOES_ACEITAS}.`);
   if (o.dados.length > tipo.limiteMB * 1024 * 1024) throw new DomainError(`Limite de ${tipo.limiteMB} MB para este tipo de arquivo.`);
-  if ((o.tipo === "album" || o.tipo === "documento") && tipo.categoria === "audio") throw new DomainError("Álbuns e documentos aceitam imagens e PDF.");
+  if ((o.tipo === "album" || o.tipo === "documento" || o.tipo === "lancamento") && tipo.categoria === "audio") throw new DomainError("Álbuns e documentos aceitam imagens e PDF.");
   if (o.tipo === "album" && tipo.categoria !== "imagem") throw new DomainError("Álbuns aceitam somente imagens.");
   if (tipo.categoria === "imagem" && (o.tipo === "album") && !o.autorizacaoImagem) {
     throw new DomainError("Confirme a autorização de uso de imagem (e dos responsáveis, no caso de menores) para enviar fotos.");
