@@ -1,3 +1,5 @@
+> Documento da Etapa 01 (decisões iniciais). O estado final está em `RELATORIO-FINAL.md`.
+
 # Nova Berith — Arquitetura (Etapa 01/08)
 
 ## 1. Auditoria do repositório

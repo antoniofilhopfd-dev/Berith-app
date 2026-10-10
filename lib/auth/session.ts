@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import type { RowDataPacket } from "mysql2/promise";
 import { execute, query } from "@/lib/db";
 import { SESSION_COOKIE, SESSION_DAYS } from "./constants";
+import { ipDe } from "./ip";
 
 export type SessionUser = { id: number; nome: string; email: string };
 
@@ -10,7 +11,7 @@ const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
 
 export async function clientInfo() {
   const h = await headers();
-  const ip = (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "0.0.0.0").trim().slice(0, 45);
+  const ip = ipDe((n) => h.get(n));
   return { ip, userAgent: (h.get("user-agent") ?? "").slice(0, 255) };
 }
 

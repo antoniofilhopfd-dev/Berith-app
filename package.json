@@ -17,14 +17,18 @@
     "gerar:vapid": "node scripts/gerar-vapid.mjs",
     "admin:criar": "node scripts/criar-admin.mjs",
     "pretest": "node scripts/gerar-migracoes.mjs",
-    "gerar:segredo": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\""
+    "gerar:segredo": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",
+    "admin:sql": "node scripts/admin-sql.mjs",
+    "verificar": "node scripts/verificar-ambiente.mjs",
+    "manutencao": "node scripts/manutencao.mjs",
+    "lgpd": "node scripts/lgpd.mjs"
   },
   "dependencies": {
     "bcryptjs": "3.0.3",
     "lucide-react": "1.54.0",
     "mysql2": "3.24.5",
     "next": "16.4.0",
-    "nodemailer": "7.0.13",
+    "nodemailer": "10.0.16",
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
