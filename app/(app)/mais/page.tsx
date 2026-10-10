@@ -1,3 +1,4 @@
+import { liturgiaAtiva } from "@/lib/liturgia/ativa";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { accessibleUnitIds, can } from "@/lib/permissions";
@@ -19,7 +20,7 @@ export default async function Mais() {
     tem(user.id, "membros", "aprovar"), tem(user.id, "membros", "criar"), can(user.id, "estruturas", "criar"),
   ]);
   const itens = [
-    { href: "/liturgia", label: "Liturgia, Horas e santo do dia", icon: BookOpen, show: true },
+    { href: "/liturgia", label: "Liturgia, Horas e santo do dia", icon: BookOpen, show: liturgiaAtiva() },
     { href: "/formacao", label: "Orações e formação", icon: GraduationCap, show: true },
     { href: "/midia", label: "Fotos e documentos", icon: Images, show: true },
     { href: "/escalas", label: "Escalas de serviço", icon: ClipboardList, show: true },

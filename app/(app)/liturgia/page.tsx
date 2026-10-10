@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { liturgiaAtiva } from "@/lib/liturgia/ativa";
 import { requireUser } from "@/lib/auth/session";
 import { itensDoDia, listarFontes, podeEditarLiturgia, type ItemLiturgia } from "@/lib/services/liturgia";
 import { can } from "@/lib/permissions";
@@ -46,6 +48,7 @@ function Bloco({ tipo, item, editar, excluir, d }: { tipo: TipoLiturgia; item?: 
 }
 
 export default async function Liturgia({ searchParams }: { searchParams: Promise<{ d?: string; editar?: string }> }) {
+  if (!liturgiaAtiva()) notFound();
   const user = await requireUser();
   const sp = await searchParams;
   const hoje = todayLocal();

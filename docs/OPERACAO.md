@@ -65,3 +65,5 @@ Pedidos de titulares: `npm run lgpd -- exportar|anonimizar`. A anonimização re
 - Configuração em `/liturgia` (quem pode editar liturgia): nome da fonte, endereço com `{data}`/`{dd}`/`{mm}`/`{aaaa}`, mapeamento JSON de caminhos (tipos: primeira_leitura, salmo, segunda_leitura, evangelho, santo, invitatorio, oficio_leituras, laudes, hora_media, vesperas, completas).
 - Use “Testar” (não grava) antes de ativar. “Importar agora” força uma execução; a automática roda na chamada do cron (`POST /api/push/enviar`), no máximo a cada 6 h.
 - O resultado fica em “última execução”/status e na auditoria (`liturgia.importar`). Falha da fonte não afeta o restante do cron.
+
+> **Liturgia desativada por enquanto.** O menu, o cartão da tela inicial, a página `/liturgia` (404) e a importação no cron ficam ocultos até `LITURGIA_ATIVA=1`. Código, tabelas e dados são preservados; basta definir a variável e reiniciar para religar.

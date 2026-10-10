@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { gerarLembretes, processarPush, pushConfigurado, segredoValido } from "@/lib/services/push";
+import { liturgiaAtiva } from "@/lib/liturgia/ativa";
 import { importar } from "@/lib/services/liturgia-importacao";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!segredoValido(token)) return resp({ erro: "Não autorizado." }, 401);
   try {
     const lembretes = await gerarLembretes();
-    const liturgia = await importar().catch((e) => ({ executado: false, erros: [e instanceof Error ? e.message.slice(0, 120) : "erro"] }));
+    const liturgia = !liturgiaAtiva() ? { executado: false, motivo: "liturgia desativada" } : await importar().catch((e) => ({ executado: false, erros: [e instanceof Error ? e.message.slice(0, 120) : "erro"] }));
     if (!pushConfigurado()) return resp({ ok: false, lembretes, liturgia, erro: "Web Push não configurado (VAPID)." }, 503);
     const push = await processarPush();
     return resp({ ok: true, lembretes, liturgia, push });

@@ -13,6 +13,7 @@ import { OcorrenciaItem, agruparPorDia, tituloDia } from "@/components/evento-ui
 import { TIPO_LABEL } from "@/lib/format";
 import { diaLiturgico } from "@/lib/liturgia/calendario";
 import { itensDoDia } from "@/lib/services/liturgia";
+import { liturgiaAtiva } from "@/lib/liturgia/ativa";
 import { todayLocal } from "@/lib/time";
 
 export default async function Inicio() {
@@ -26,7 +27,7 @@ export default async function Inicio() {
     listMyAssignments(user.id, agora, 5),
     listTasks(user.id, "minhas"),
     nextMeetings(user.id),
-    itensDoDia(hojeLocal),
+    liturgiaAtiva() ? itensDoDia(hojeLocal) : Promise.resolve([]),
   ]);
   const dia = diaLiturgico(hojeLocal);
   const evangelho = litItens.find((i) => i.tipo === "evangelho");
@@ -39,7 +40,7 @@ export default async function Inicio() {
     <section className="space-y-4">
       <h1 className="font-titulo text-2xl text-verde">Paz e alegria, {user.nome.split(" ")[0]}!</h1>
 
-      <Card title="Liturgia de hoje">
+      {liturgiaAtiva() && <Card title="Liturgia de hoje">
         <Link href="/liturgia" className="block min-h-12">
           <span className="font-medium">{dia.titulo}</span>
           <span className="block text-sm text-tinta/70">{dia.tempoNome} · cor {dia.cor} · ano {dia.cicloDominical}/{dia.cicloFerial}</span>
@@ -47,7 +48,7 @@ export default async function Inicio() {
           {santo && <span className="block text-sm">Santo do dia: {santo.titulo}</span>}
           {!evangelho && !santo && <span className="mt-1 block text-sm text-tinta/60">Leituras, Liturgia das Horas e santo do dia ainda não cadastrados para hoje.</span>}
         </Link>
-      </Card>
+      </Card>}
 
       <Card title="Comunicados">
         {naoLidos.length === 0 ? <Empty>Nenhum comunicado novo para você.</Empty> : (
