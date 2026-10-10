@@ -28,6 +28,9 @@ export function ActionForm({
       {children}
       {state.erro && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{state.erro}</p>}
       {state.ok && <p role="status" className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{state.ok}</p>}
+      {state.detalhes && state.detalhes.length > 0 && (
+        <ul className="space-y-1 rounded-lg border border-borda bg-white p-3 text-sm">{state.detalhes.map((d, i) => <li key={i} className="whitespace-pre-line">{d}</li>)}</ul>
+      )}
       {state.link && (
         <div className="rounded-lg border border-cobre/40 bg-amber-50 p-3 text-sm">
           <p className="mb-1 font-medium">Link (mostrado uma única vez — entregue por canal seguro):</p>

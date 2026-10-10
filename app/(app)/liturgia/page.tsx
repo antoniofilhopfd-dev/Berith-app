@@ -4,10 +4,11 @@ import { itensDoDia, listarFontes, podeEditarLiturgia, type ItemLiturgia } from 
 import { can } from "@/lib/permissions";
 import { diaLiturgico } from "@/lib/liturgia/calendario";
 import { GRUPO_HORAS, GRUPO_PALAVRA, TIPOS_LITURGIA, TIPO_ROTULO, type TipoLiturgia } from "@/lib/validation/liturgia";
-import { addDays, brDate, isDate, todayLocal } from "@/lib/time";
+import { addDays, brDate, isDate, todayLocal, utcToLocal } from "@/lib/time";
 import { Badge, Card } from "@/components/ui";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
-import { adicionarFonteAction, excluirLiturgiaAction, removerFonteAction, salvarLiturgiaAction } from "./actions";
+import { adicionarFonteAction, excluirLiturgiaAction, importarAgoraAction, provedorAction, removerFonteAction, salvarLiturgiaAction } from "./actions";
+import { getProvedor } from "@/lib/services/liturgia-importacao";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 
 const COR: Record<string, string> = { verde: "bg-green-700", roxo: "bg-purple-800", branco: "bg-white ring-1 ring-borda", vermelho: "bg-red-700" };
@@ -50,6 +51,7 @@ export default async function Liturgia({ searchParams }: { searchParams: Promise
   const hoje = todayLocal();
   const d = sp.d && isDate(sp.d) ? sp.d : hoje;
   const [itens, fontes, editar, excluir] = await Promise.all([itensDoDia(d), listarFontes(), podeEditarLiturgia(user.id), can(user.id, "conteudos", "excluir", null)]);
+  const prov = editar ? await getProvedor(user.id) : null;
   const dia = diaLiturgico(d);
   const por = new Map(itens.map((i) => [i.tipo, i]));
   const tipoEdit = (TIPOS_LITURGIA as readonly string[]).includes(sp.editar ?? "") ? (sp.editar as TipoLiturgia) : TIPOS_LITURGIA.find((t) => !por.has(t)) ?? "evangelho";
@@ -103,6 +105,26 @@ export default async function Liturgia({ searchParams }: { searchParams: Promise
           </ActionForm>
         )}
       </Card>
+
+      {editar && (
+        <Card title="Importação automática">
+          <p className="mb-3 text-xs text-tinta/70">Busca sozinha a liturgia de uma fonte que <strong>a comunidade tem autorização de usar</strong>. O app só consulta endereços públicos em HTTPS. O que foi cadastrado à mão nunca é sobrescrito. Use “Testar” para ver a prévia antes de ativar.</p>
+          {prov && <p className="mb-3 rounded-lg bg-verde/10 px-3 py-2 text-xs">{prov.ativo ? "Ativa" : "Desativada"} · última execução: {prov.ultima_execucao ? `${brDate(utcToLocal(new Date(prov.ultima_execucao)).date)} ${utcToLocal(new Date(prov.ultima_execucao)).time}` : "nunca"}{prov.ultimo_status && ` · ${prov.ultimo_status}`}</p>}
+          <ActionForm action={provedorAction} submit="Salvar configuração" resetOnOk={false}>
+            <Field label="Nome da fonte (aparece em cada conteúdo)"><input name="fonteNome" required maxLength={160} defaultValue={prov?.fonte_nome} className={inputCls} /></Field>
+            <Field label="Link público da fonte (opcional)"><input name="fonteUrlPublica" type="url" defaultValue={prov?.fonte_url_publica ?? ""} className={inputCls} /></Field>
+            <Field label="Endereço da API (https://…; use {data}, {dd}, {mm}, {aaaa})"><input name="urlTemplate" required maxLength={600} defaultValue={prov?.url_template} placeholder="https://exemplo.org/liturgia?data={data}" className={inputCls} /></Field>
+            <Field label="Mapeamento dos campos (JSON)"><textarea name="mapeamento" required rows={7} spellCheck={false} defaultValue={prov ? JSON.stringify(JSON.parse(prov.mapeamento), null, 2) : ""} placeholder={'{\n  "evangelho": { "titulo": "caminho.da.referencia", "texto": "caminho.do.texto" },\n  "santo": { "titulo": "caminho.do.nome" }\n}'} className={inputCls + " py-2 font-mono text-xs"} /></Field>
+            <p className="text-xs text-tinta/60">Cada chave é um tipo ({TIPOS_LITURGIA.join(", ")}); “titulo” e “texto” são caminhos no JSON da fonte (ex.: <code>leituras.evangelho.0.referencia</code>).</p>
+            <Field label="Importar hoje e os próximos (dias)"><input name="diasAFrente" type="number" min={0} max={7} defaultValue={prov?.dias_a_frente ?? 2} className={inputCls} /></Field>
+            <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="copiarTexto" defaultChecked={Boolean(prov?.copiar_texto)} className="h-5 w-5" /> Copiar também o texto completo (senão, só a referência e o link da fonte)</label>
+            <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="direitosConfirmados" defaultChecked={Boolean(prov?.direitos_confirmados)} className="mt-1 h-5 w-5 shrink-0" /> <span>Confirmo que a comunidade tem autorização para reproduzir o texto desta fonte (obrigatório para copiar o texto).</span></label>
+            <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="ativo" defaultChecked={Boolean(prov?.ativo)} className="h-5 w-5" /> Ativar importação automática</label>
+            <button type="submit" name="acao" value="testar" className="min-h-11 rounded-lg border border-verde px-4 text-sm text-verde">Testar com a data de hoje (sem salvar)</button>
+          </ActionForm>
+          {prov && <ActionForm action={importarAgoraAction} submit="Importar agora" className="mt-3"><span /></ActionForm>}
+        </Card>
+      )}
 
       {editar && (
         <Card title="Cadastrar ou editar conteúdo" className="scroll-mt-20">

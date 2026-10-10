@@ -55,7 +55,7 @@ describe("POST /api/push/enviar (agendador)", () => {
     tokenAtual = tokens.get(ana)!; expect((await inscrever(req("/api/push/inscrever", { method: "POST", ...json(sub, { origin: "http://localhost" }) }))).status).toBe(201);
     await notificar([ana], { tipo: "sistema", titulo: "Pelo cron", dedupeKey: "cron1" });
     const r = await enviar(post(`Bearer ${SEGREDO}`)); expect(r.status).toBe(200);
-    const corpo = await r.json(); expect(corpo.ok).toBe(true); expect(corpo.push.enviadas).toBe(1); expect(n).toBe(1);
+    const corpo = await r.json(); expect(corpo.ok).toBe(true); expect(corpo.liturgia).toMatchObject({ executado: false }); expect(corpo.push.enviadas).toBe(1); expect(n).toBe(1);
     expect((await (await enviar(post(`Bearer ${SEGREDO}`))).json()).push.enviadas).toBe(0); expect(n).toBe(1);
   });
 });

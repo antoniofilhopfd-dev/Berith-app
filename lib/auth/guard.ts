@@ -6,7 +6,7 @@ import { requireUser, AuthError, type SessionUser } from "./session";
 import { ForbiddenError } from "@/lib/permissions";
 import { DomainError, NotFoundError } from "@/lib/services/errors";
 
-export type ActionResult = { erro?: string; ok?: string; link?: string };
+export type ActionResult = { erro?: string; ok?: string; link?: string; detalhes?: string[] };
 export type FormAction = (prev: ActionResult, form: FormData) => Promise<ActionResult>;
 
 /**

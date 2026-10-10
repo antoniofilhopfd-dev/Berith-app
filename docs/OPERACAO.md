@@ -59,3 +59,9 @@ Pedidos de titulares: `npm run lgpd -- exportar|anonimizar`. A anonimização re
 - `audit_log`: logins (`login.sucesso/falha/bloqueado`), financeiro (`financeiro.*`), arquivos (`arquivo.*`), permissões (`papel.*`), LGPD (`lgpd.*`).
 - Suspender uma pessoa: tela do membro → "Suspender acesso" (encerra as sessões na hora). Reabrir período financeiro exige administração e fica registrado.
 - Financeiro: aprovação por **duas pessoas** (configuração `financeiro_aprovacao_dupla` em `settings`; só desligue se houver um único responsável).
+
+## Importação automática de liturgia
+
+- Configuração em `/liturgia` (quem pode editar liturgia): nome da fonte, endereço com `{data}`/`{dd}`/`{mm}`/`{aaaa}`, mapeamento JSON de caminhos (tipos: primeira_leitura, salmo, segunda_leitura, evangelho, santo, invitatorio, oficio_leituras, laudes, hora_media, vesperas, completas).
+- Use “Testar” (não grava) antes de ativar. “Importar agora” força uma execução; a automática roda na chamada do cron (`POST /api/push/enviar`), no máximo a cada 6 h.
+- O resultado fica em “última execução”/status e na auditoria (`liturgia.importar`). Falha da fonte não afeta o restante do cron.

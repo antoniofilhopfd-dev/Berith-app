@@ -10,6 +10,7 @@ Branch de desenvolvimento: `claude/charming-brahmagupta-t5epqr` (nada foi public
 | 03 Estruturas | Caminhos/ministérios/grupos/serviços, vínculos, transferência, convite e aprovação, recuperação de senha, papéis | `etapa03-*` |
 | 04 Vida comunitária | Agenda (mês/semana/lista), recorrência, inscrições com vagas, comunicados com leitura, painel | `etapa04-*` |
 | 05 Organização | Escalas (conflitos, indisponibilidade, substituição, CSV), presenças (correção auditada, QR), tarefas, reuniões e decisões | `etapa05-*` |
+| 09 Importação de liturgia | Importador configurável (leituras, Liturgia das Horas, santo do dia), prévia, confirmação de direitos, proteção contra SSRF | `etapa09-*` |
 | 06 Espiritualidade e arquivos | Liturgia (calendário calculado + cadastro com fonte), orações/formação/trilhas/favoritos, armazenamento privado, álbuns, documentos, anexos | `etapa06-*` |
 | 07 Financeiro e notificações | Financeiro em centavos (aprovação, estorno, fechamento, prestação de contas, conciliação), notificações, lembretes, Web Push, PWA | `etapa07-*` |
 | 08 Publicação | Identidade visual, hardening, verificação de ambiente, retenção/LGPD, backup/restauração, documentação | `docs/*` |
@@ -53,7 +54,7 @@ restauração continuava após falha de checksum · Nodemailer vulnerável · av
 3. **Administrador inicial**: e-mail e nome (a senha você define, localmente, com `npm run admin:sql`).
 4. **SMTP** (opcional): sem ele, links de convite e de senha são entregues manualmente.
 5. **Estrutura real**: lista de caminhos, ministérios, grupos e serviços e quem coordena (cadastro pela interface).
-6. **Liturgia**: uma fonte **com autorização de uso** para leituras/Liturgia das Horas se quiser importação automática (hoje: cadastro manual com fonte).
+6. **Liturgia**: a importação automática já está pronta (migração 014, tela em `/liturgia`, chamada pelo cron). Falta só informar uma fonte JSON **com autorização de uso**, o endereço e o mapeamento dos campos na tela “Importação automática”, e usar “Testar” antes de ativar. Sem confirmar os direitos, só a referência e o link da fonte são gravados, nunca o texto. Não foi possível verificar nenhuma fonte real (o ambiente de desenvolvimento não acessa a internet externa); o fluxo foi testado contra um servidor local (`etapa09-*`).
 7. **Revisão jurídica** do aviso de privacidade e confirmação com a contabilidade do **prazo de guarda** dos registros financeiros.
 8. **Teste em aparelhos reais** (Android e iPhone ≥ 16.4) da instalação e das notificações push.
 
