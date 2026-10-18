@@ -77,6 +77,24 @@ export async function tx<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T
   }
 }
 
+/**
+ * Exclusão mútua entre processos/execuções via GET_LOCK. A trava pertence à SESSÃO do banco, por isso é obtida e
+ * liberada numa conexão dedicada, mantida durante `fn` (num pool, outra conexão poderia reutilizá-la ou nunca liberá-la).
+ * Retorna `{ ocupado: true }` se outra execução já está rodando.
+ */
+export async function comTrava<T>(nome: string, fn: () => Promise<T>): Promise<{ ocupado: true } | { ocupado: false; valor: T }> {
+  await ensureReady();
+  const conn = await getPool().getConnection();
+  try {
+    const [r] = await conn.query<RowDataPacket[]>("SELECT GET_LOCK(?, 0) AS ok", [nome]);
+    if (r[0].ok !== 1) return { ocupado: true };
+    try { return { ocupado: false, valor: await fn() }; }
+    finally { await conn.query("SELECT RELEASE_LOCK(?)", [nome]).catch(() => undefined); }
+  } finally {
+    conn.release();
+  }
+}
+
 export async function closePool() {
   if (g.__nbPool) await g.__nbPool.end();
   g.__nbPool = undefined;

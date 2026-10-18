@@ -6,7 +6,7 @@ import { baseUrl, type ActionResult } from "./guard";
 import { clientInfo } from "./session";
 import { emailSchema, senhaNovaSchema } from "@/lib/validation/auth";
 import { requestPasswordReset, resetPassword } from "@/lib/services/senha";
-import { acceptInvitation } from "@/lib/services/membros";
+import { acceptInvitation } from "@/lib/services/equipe";
 import { DomainError } from "@/lib/services/errors";
 
 async function run(fn: () => Promise<ActionResult>): Promise<ActionResult> {

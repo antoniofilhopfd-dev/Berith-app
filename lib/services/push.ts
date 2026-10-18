@@ -1,10 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { RowDataPacket } from "mysql2/promise";
 import webpush from "web-push";
-import { execute, query } from "@/lib/db";
-import { occurrences } from "./recorrencia";
-import { emSilencio, notificar } from "./notificacoes";
-import { addDays, todayLocal, utcToLocal } from "@/lib/time";
+import { comTrava, execute, query } from "@/lib/db";
+import { emSilencio } from "./notificacoes";
+import { utcToLocal } from "@/lib/time";
 import { DomainError } from "./errors";
 
 /* ---------- Inscrições ---------- */
@@ -59,53 +58,53 @@ export type ResultadoEnvio = { processadas: number; enviadas: number; ignoradas:
  * (notificação, dispositivo) é único: nunca envia duas vezes. Respeita preferências e horário de silêncio.
  */
 export async function processarPush(agora = new Date()): Promise<ResultadoEnvio> {
+  const vazio: ResultadoEnvio = { processadas: 0, enviadas: 0, ignoradas: 0, adiadas: 0, expiradas: 0, falhas: 0, removidas: 0 };
+  const r = await comTrava(LOCK, () => executarPush(agora));
+  return r.ocupado ? { ...vazio, ocupado: true } : r.valor;
+}
+
+async function executarPush(agora: Date): Promise<ResultadoEnvio> {
   const res: ResultadoEnvio = { processadas: 0, enviadas: 0, ignoradas: 0, adiadas: 0, expiradas: 0, falhas: 0, removidas: 0 };
-  const lock = await query<RowDataPacket>("SELECT GET_LOCK(?, 0) ok", [LOCK]);
-  if (lock[0].ok !== 1) return { ...res, ocupado: true };
-  try {
-    const enviar = enviadorPadrao ?? (pushConfigurado() ? enviadorReal() : null);
-    if (!enviar) throw new Error("Web Push não configurado.");
-    const pend = await query<RowDataPacket & { id: number; user_id: number; tipo: string; titulo: string; corpo: string | null; url: string | null; agendada_para: Date }>(
-      "SELECT id, user_id, tipo, titulo, corpo, url, agendada_para FROM notificacoes WHERE push_status = 'pendente' AND agendada_para <= ? ORDER BY id LIMIT 200", [agora]);
-    const hhmm = utcToLocal(agora).time;
-    for (const n of pend) {
-      res.processadas++;
-      const [cfg] = await query<RowDataPacket>("SELECT push_ativo, TIME_FORMAT(silencio_inicio,'%H:%i') ini, TIME_FORMAT(silencio_fim,'%H:%i') fim FROM notificacao_config WHERE user_id = ?", [n.user_id]);
-      const [tp] = await query<RowDataPacket>("SELECT ativo FROM notificacao_tipos WHERE user_id = ? AND tipo = ?", [n.user_id, n.tipo]);
-      if ((cfg && !cfg.push_ativo) || (tp && !tp.ativo)) { await execute("UPDATE notificacoes SET push_status='ignorada' WHERE id = ?", [n.id]); res.ignoradas++; continue; }
-      if (emSilencio(hhmm, cfg?.ini ?? null, cfg?.fim ?? null)) {
-        if (agora.getTime() - new Date(n.agendada_para).getTime() > 24 * 3600_000) { await execute("UPDATE notificacoes SET push_status='expirada' WHERE id = ?", [n.id]); res.expiradas++; } else res.adiadas++;
-        continue;
-      }
-      const subs = await query<RowDataPacket & { id: number; endpoint: string; p256dh: string; auth: string; falhas: number }>("SELECT id, endpoint, p256dh, auth, falhas FROM push_subscriptions WHERE user_id = ?", [n.user_id]);
-      if (subs.length === 0) { await execute("UPDATE notificacoes SET push_status='ignorada' WHERE id = ?", [n.id]); res.ignoradas++; continue; }
-      const payload = JSON.stringify({ id: n.id, titulo: n.titulo, corpo: n.corpo, url: n.url ?? "/notificacoes" });
-      for (const s of subs) {
-        const claim = await execute("INSERT IGNORE INTO push_entregas (notificacao_id, subscription_id, status) VALUES (?, ?, 'falhou')", [n.id, s.id]);
-        if (claim.affectedRows === 0) continue; // já tentado: sem duplicidade
-        try {
-          const r = await enviar({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
-          if (r.statusCode >= 200 && r.statusCode < 300) { await execute("UPDATE push_entregas SET status='enviada', http_status=? WHERE notificacao_id=? AND subscription_id=?", [r.statusCode, n.id, s.id]); res.enviadas++; }
-          else if (r.statusCode === 404 || r.statusCode === 410) {
-            await execute("UPDATE push_entregas SET status='removida', http_status=? WHERE notificacao_id=? AND subscription_id=?", [r.statusCode, n.id, s.id]);
-            await execute("DELETE FROM push_subscriptions WHERE id = ?", [s.id]); res.removidas++; // inscrição inválida/expirada
-          } else {
-            await execute("UPDATE push_entregas SET http_status=?, erro='resposta do serviço de push' WHERE notificacao_id=? AND subscription_id=?", [r.statusCode, n.id, s.id]);
-            await execute("UPDATE push_subscriptions SET falhas = falhas + 1 WHERE id = ?", [s.id]);
-            if (s.falhas + 1 >= 5) await execute("DELETE FROM push_subscriptions WHERE id = ?", [s.id]);
-            res.falhas++;
-          }
-        } catch (e) {
-          await execute("UPDATE push_entregas SET erro=? WHERE notificacao_id=? AND subscription_id=?", [(e instanceof Error ? e.message : "erro").slice(0, 200), n.id, s.id]);
+  const enviar = enviadorPadrao ?? (pushConfigurado() ? enviadorReal() : null);
+  if (!enviar) throw new Error("Web Push não configurado.");
+  const pend = await query<RowDataPacket & { id: number; user_id: number; tipo: string; titulo: string; corpo: string | null; url: string | null; agendada_para: Date }>(
+    "SELECT id, user_id, tipo, titulo, corpo, url, agendada_para FROM notificacoes WHERE push_status = 'pendente' AND agendada_para <= ? ORDER BY id LIMIT 200", [agora]);
+  const hhmm = utcToLocal(agora).time;
+  for (const n of pend) {
+    res.processadas++;
+    const [cfg] = await query<RowDataPacket>("SELECT push_ativo, TIME_FORMAT(silencio_inicio,'%H:%i') ini, TIME_FORMAT(silencio_fim,'%H:%i') fim FROM notificacao_config WHERE user_id = ?", [n.user_id]);
+    const [tp] = await query<RowDataPacket>("SELECT ativo FROM notificacao_tipos WHERE user_id = ? AND tipo = ?", [n.user_id, n.tipo]);
+    if ((cfg && !cfg.push_ativo) || (tp && !tp.ativo)) { await execute("UPDATE notificacoes SET push_status='ignorada' WHERE id = ?", [n.id]); res.ignoradas++; continue; }
+    if (emSilencio(hhmm, cfg?.ini ?? null, cfg?.fim ?? null)) {
+      if (agora.getTime() - new Date(n.agendada_para).getTime() > 24 * 3600_000) { await execute("UPDATE notificacoes SET push_status='expirada' WHERE id = ?", [n.id]); res.expiradas++; } else res.adiadas++;
+      continue;
+    }
+    const subs = await query<RowDataPacket & { id: number; endpoint: string; p256dh: string; auth: string; falhas: number }>("SELECT id, endpoint, p256dh, auth, falhas FROM push_subscriptions WHERE user_id = ?", [n.user_id]);
+    if (subs.length === 0) { await execute("UPDATE notificacoes SET push_status='ignorada' WHERE id = ?", [n.id]); res.ignoradas++; continue; }
+    const payload = JSON.stringify({ id: n.id, titulo: n.titulo, corpo: n.corpo, url: n.url ?? "/notificacoes" });
+    for (const s of subs) {
+      const claim = await execute("INSERT IGNORE INTO push_entregas (notificacao_id, subscription_id, status) VALUES (?, ?, 'falhou')", [n.id, s.id]);
+      if (claim.affectedRows === 0) continue; // já tentado: sem duplicidade
+      try {
+        const r = await enviar({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
+        if (r.statusCode >= 200 && r.statusCode < 300) { await execute("UPDATE push_entregas SET status='enviada', http_status=? WHERE notificacao_id=? AND subscription_id=?", [r.statusCode, n.id, s.id]); res.enviadas++; }
+        else if (r.statusCode === 404 || r.statusCode === 410) {
+          await execute("UPDATE push_entregas SET status='removida', http_status=? WHERE notificacao_id=? AND subscription_id=?", [r.statusCode, n.id, s.id]);
+          await execute("DELETE FROM push_subscriptions WHERE id = ?", [s.id]); res.removidas++; // inscrição inválida/expirada
+        } else {
+          await execute("UPDATE push_entregas SET http_status=?, erro='resposta do serviço de push' WHERE notificacao_id=? AND subscription_id=?", [r.statusCode, n.id, s.id]);
+          await execute("UPDATE push_subscriptions SET falhas = falhas + 1 WHERE id = ?", [s.id]);
+          if (s.falhas + 1 >= 5) await execute("DELETE FROM push_subscriptions WHERE id = ?", [s.id]);
           res.falhas++;
         }
+      } catch (e) {
+        await execute("UPDATE push_entregas SET erro=? WHERE notificacao_id=? AND subscription_id=?", [(e instanceof Error ? e.message : "erro").slice(0, 200), n.id, s.id]);
+        res.falhas++;
       }
-      await execute("UPDATE notificacoes SET push_status='enviada', push_em=UTC_TIMESTAMP() WHERE id = ?", [n.id]);
     }
-    return res;
-  } finally {
-    await query("SELECT RELEASE_LOCK(?)", [LOCK]);
+    await execute("UPDATE notificacoes SET push_status='enviada', push_em=UTC_TIMESTAMP() WHERE id = ?", [n.id]);
   }
+  return res;
 }
 
 /** Comparação em tempo constante do segredo do agendador. Segredo vazio/curto nunca autoriza. */
@@ -113,39 +112,4 @@ export function segredoValido(recebido: string | null, esperado = process.env.CR
   if (!esperado || esperado.length < 24 || !recebido) return false;
   const a = Buffer.from(createHash("sha256").update(recebido).digest("hex")), b = Buffer.from(createHash("sha256").update(esperado).digest("hex"));
   return a.length === b.length && timingSafeEqual(a, b);
-}
-
-/* ---------- Lembretes (geram notificações internas; o push as entrega) ---------- */
-export async function gerarLembretes(agora = new Date()): Promise<{ eventos: number; escalas: number; reunioes: number; tarefas: number }> {
-  const out = { eventos: 0, escalas: 0, reunioes: 0, tarefas: 0 };
-  // Eventos: avisa quem confirmou/“talvez”, na antecedência definida no evento.
-  const evs = await query<RowDataPacket & { id: number; titulo: string; inicio: Date; fim: Date | null; recorrencia: "nenhuma" | "semanal" | "mensal"; recorrencia_ate: string | null; lembrete_min: number }>(
-    `SELECT id, titulo, inicio, fim, recorrencia, recorrencia_ate, lembrete_min FROM events WHERE lembrete_min IS NOT NULL AND cancelado_em IS NULL
-       AND (recorrencia <> 'nenhuma' OR inicio BETWEEN ? AND ?)`, [agora, new Date(agora.getTime() + 8 * 86400_000)]);
-  for (const e of evs) {
-    const exc = await query<RowDataPacket>("SELECT occurrence_date d FROM event_exceptions WHERE event_id = ?", [e.id]);
-    const cancel = new Set(exc.map((x) => String(x.d)));
-    for (const o of occurrences(e, agora, new Date(agora.getTime() + e.lembrete_min * 60_000))) {
-      if (cancel.has(o.date) || o.inicio.getTime() <= agora.getTime()) continue;
-      const quem = await query<RowDataPacket>("SELECT user_id FROM event_rsvps WHERE event_id = ? AND occurrence_date = ? AND status IN ('confirmado','talvez')", [e.id, o.date]);
-      out.eventos += await notificar(quem.map((q) => Number(q.user_id)), { tipo: "evento", titulo: `Lembrete: ${e.titulo}`, corpo: `Começa às ${utcToLocal(o.inicio).time}.`, url: `/eventos/${e.id}?d=${o.date}`, dedupeKey: `lembrete:evento:${e.id}:${o.date}` });
-    }
-  }
-  // Escalas nas próximas 24 h.
-  const esc = await query<RowDataPacket & { aid: number; user_id: number; titulo: string; inicio: Date; sid: number }>(
-    `SELECT a.id aid, a.user_id, s.titulo, s.inicio, s.id sid FROM shift_assignments a JOIN shifts s ON s.id = a.shift_id
-     WHERE a.status IN ('pendente','confirmado') AND s.cancelado_em IS NULL AND s.inicio > ? AND s.inicio <= ?`, [agora, new Date(agora.getTime() + 24 * 3600_000)]);
-  for (const e of esc) out.escalas += await notificar([Number(e.user_id)], { tipo: "escala", titulo: `Lembrete de escala: ${e.titulo}`, corpo: `Hoje/amanhã às ${utcToLocal(e.inicio).time}.`, url: `/escalas/${e.sid}`, dedupeKey: `lembrete:escala:${e.aid}` });
-  // Reuniões nas próximas 24 h.
-  const reu = await query<RowDataPacket & { id: number; titulo: string; inicio: Date }>("SELECT id, titulo, inicio FROM meetings WHERE status = 'agendada' AND inicio > ? AND inicio <= ?", [agora, new Date(agora.getTime() + 24 * 3600_000)]);
-  for (const m of reu) {
-    const p = await query<RowDataPacket>("SELECT user_id FROM meeting_participants WHERE meeting_id = ?", [m.id]);
-    out.reunioes += await notificar(p.map((x) => Number(x.user_id)), { tipo: "reuniao", titulo: `Lembrete de reunião: ${m.titulo}`, corpo: `Às ${utcToLocal(m.inicio).time}.`, url: `/reunioes/${m.id}`, dedupeKey: `lembrete:reuniao:${m.id}` });
-  }
-  // Tarefas com prazo hoje ou amanhã.
-  const hoje = todayLocal(), amanha = addDays(hoje, 1);
-  const tar = await query<RowDataPacket & { id: number; responsavel_id: number; titulo: string; prazo: string }>(
-    "SELECT id, responsavel_id, titulo, prazo FROM tasks WHERE responsavel_id IS NOT NULL AND status IN ('aberta','em_andamento') AND prazo IN (?, ?)", [hoje, amanha]);
-  for (const t of tar) out.tarefas += await notificar([Number(t.responsavel_id)], { tipo: "tarefa", titulo: `Prazo ${t.prazo === hoje ? "hoje" : "amanhã"}: ${t.titulo}`, url: `/tarefas/${t.id}`, dedupeKey: `lembrete:tarefa:${t.id}:${t.prazo}` });
-  return out;
 }

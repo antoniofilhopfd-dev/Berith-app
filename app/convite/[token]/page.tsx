@@ -1,7 +1,7 @@
 import { PublicShell } from "@/components/public-shell";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { aceitarConviteAction } from "@/lib/auth/public-actions";
-import { getValidInvitation } from "@/lib/services/membros";
+import { getValidInvitation } from "@/lib/services/equipe";
 
 export const dynamic = "force-dynamic";
 

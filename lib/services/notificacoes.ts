@@ -2,10 +2,11 @@ import type { RowDataPacket } from "mysql2/promise";
 import { execute, query } from "@/lib/db";
 import { audit } from "./audit";
 
-export const TIPOS_NOTIFICACAO = ["evento", "comunicado", "escala", "tarefa", "reuniao", "conteudo", "financeiro", "sistema"] as const;
+export const TIPOS_NOTIFICACAO = ["aprovacao", "ajuste", "comentario", "prazo", "publicacao", "falha", "equipe", "sistema"] as const;
 export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
 export const TIPO_NOTIF_ROTULO: Record<TipoNotificacao, string> = {
-  evento: "Eventos", comunicado: "Comunicados", escala: "Escalas", tarefa: "Tarefas", reuniao: "Reuniões", conteudo: "Conteúdos", financeiro: "Financeiro (aprovações)", sistema: "Avisos do sistema",
+  aprovacao: "Conteúdos aguardando aprovação", ajuste: "Ajustes solicitados e aprovações", comentario: "Comentários", prazo: "Prazos de produção",
+  publicacao: "Publicações agendadas e realizadas", falha: "Falhas de publicação", equipe: "Equipe e acessos", sistema: "Avisos do sistema",
 };
 export type Notificacao = { id: number; tipo: TipoNotificacao; titulo: string; corpo: string | null; url: string | null; lida_em: Date | null; criado_em: Date };
 
@@ -37,25 +38,15 @@ export async function notificarSeguro(fn: () => Promise<unknown>) {
   try { await fn(); } catch (e) { console.error("[notificacoes]", e instanceof Error ? e.message : "erro"); }
 }
 
-/** Quem deve ser avisado sobre algo de uma estrutura: integrantes ativos e responsáveis (papéis com escopo no ramo). unit null = comunidade toda. */
-export async function destinatarios(unitId: number | null, excluir: number[] = []): Promise<number[]> {
-  const rows = unitId == null
-    ? await query<RowDataPacket>("SELECT id FROM users WHERE status = 'ativo'")
-    : await query<RowDataPacket>(
-        `WITH RECURSIVE anc AS (SELECT id, parent_id FROM org_units WHERE id = ? UNION ALL SELECT o.id, o.parent_id FROM org_units o JOIN anc a ON o.id = a.parent_id)
-         SELECT DISTINCT u.id FROM users u WHERE u.status = 'ativo' AND (
-           EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id AND m.unit_id = ? AND m.inicio <= UTC_DATE() AND (m.fim IS NULL OR m.fim > UTC_DATE()))
-           OR EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id AND r.e_global = 0 WHERE ur.user_id = u.id AND ur.scope_unit_id IN (SELECT id FROM anc)))`, [unitId, unitId]);
-  const ex = new Set(excluir);
-  return rows.map((r) => Number(r.id)).filter((i) => !ex.has(i));
-}
-
-/** Quem pode aprovar lançamentos (papel global com a permissão), excluindo quem lançou. */
-export async function aprovadoresFinanceiros(excluir: number): Promise<number[]> {
+/** Usuários ativos cujo perfil tem a permissão (recurso, ação). Base para avisar aprovadores, coordenadores etc. */
+export async function destinatariosCom(recurso: string, acao: string, excluir: number[] = []): Promise<number[]> {
   const r = await query<RowDataPacket>(
-    `SELECT DISTINCT ur.user_id id FROM user_roles ur JOIN roles ro ON ro.id = ur.role_id AND ro.e_global = 1 AND ur.scope_unit_id IS NULL
-     JOIN role_permissions rp ON rp.role_id = ro.id AND rp.recurso = 'financeiro' AND rp.acao = 'aprovar' JOIN users u ON u.id = ur.user_id AND u.status = 'ativo' WHERE ur.user_id <> ?`, [excluir]);
-  return r.map((x) => Number(x.id));
+    `SELECT DISTINCT ur.user_id id FROM user_roles ur
+       JOIN roles ro ON ro.id = ur.role_id AND ro.e_global = 1
+       JOIN role_permissions rp ON rp.role_id = ro.id AND rp.recurso = ? AND rp.acao = ?
+       JOIN users u ON u.id = ur.user_id AND u.status = 'ativo' WHERE ur.scope_unit_id IS NULL`, [recurso, acao]);
+  const ex = new Set(excluir);
+  return r.map((x) => Number(x.id)).filter((i) => !ex.has(i));
 }
 
 /* ---- Leitura e preferências (sempre do próprio usuário) ---- */

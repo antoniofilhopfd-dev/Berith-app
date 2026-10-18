@@ -30,13 +30,13 @@ export async function requestPasswordReset(email: string, baseUrl: string, ip: s
   if (Number(recentes[0].n) >= MAX_POR_HORA) return;
   const token = await createReset(u[0].id);
   await audit(u[0].id, "senha.solicitar_redefinicao", { ip });
-  await sendMail(email, "Nova Berith — redefinição de senha",
+  await sendMail(email, "Berith — redefinição de senha",
     `Olá, ${u[0].nome}.\n\nPara criar uma nova senha, acesse (válido por ${VALIDADE_MIN} minutos):\n${baseUrl}/redefinir-senha/${token}\n\nSe você não pediu, ignore esta mensagem.`);
 }
 
 /** Link gerado por um administrador para entregar ao membro por canal seguro. */
 export async function adminCreateReset(actor: number, userId: number) {
-  await assertCan(actor, "membros", "permissoes", null);
+  await assertCan(actor, "equipe", "gerir");
   const token = await createReset(userId);
   await audit(actor, "senha.gerar_link", { entidade: "user", entidadeId: userId });
   return token;

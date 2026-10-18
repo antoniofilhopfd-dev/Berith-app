@@ -10,6 +10,7 @@
   --marrom: #604038;
   --borda: #e4dccb;
   --cartao: #ffffff;
+  --lateral: #3f523f;
 }
 
 @theme inline {
@@ -20,6 +21,8 @@
   --color-cobre: var(--cobre);
   --color-borda: var(--borda);
   --color-cartao: var(--cartao);
+  --color-lateral: var(--lateral);
+  --color-marrom: var(--marrom);
   --font-titulo: ui-rounded, "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
 }
 
@@ -32,3 +35,8 @@ input, select, textarea, button { font-size: 16px; }
 
 /* Caixas de seleção e botões de opção na cor da marca */
 input[type="checkbox"], input[type="radio"] { accent-color: var(--verde); }
+
+/* Foco visível para navegação por teclado */
+:focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
+a, button, summary { -webkit-tap-highlight-color: transparent; }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
