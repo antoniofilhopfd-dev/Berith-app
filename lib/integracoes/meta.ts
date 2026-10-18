@@ -24,7 +24,7 @@ const tokenInvalido = (status: number, json: unknown) => {
   return status === 401 || e.code === 190 || e.type === "OAuthException" && [102, 190].includes(Number(e.code));
 };
 
-async function trocarCodigoMeta(code: string, redirectUri: string): Promise<{ tokens: TokensOAuth; pagina: { id: string; nome: string; token: string; igId: string | null } }> {
+async function trocarCodigoMeta(code: string, redirectUri: string, comInstagram = false): Promise<{ tokens: TokensOAuth; pagina: { id: string; nome: string; token: string; igId: string | null } }> {
   const r1 = await chamar(`${graph()}/oauth/access_token?${form({ client_id: appId(), client_secret: appSecret(), redirect_uri: redirectUri, code })}`);
   const curto = str(obj(r1.json).access_token);
   if (r1.status !== 200 || !curto) throw new Error(erroPlataforma(r1.json, r1.texto, r1.status));
@@ -34,7 +34,9 @@ async function trocarCodigoMeta(code: string, redirectUri: string): Promise<{ to
   const r3 = await get("/me/accounts", longo, { fields: "id,name,access_token,instagram_business_account{id,username}", limit: "50" });
   if (r3.status !== 200) throw new Error(erroPlataforma(r3.json, r3.texto, r3.status));
   const paginas = (Array.isArray(obj(r3.json).data) ? (obj(r3.json).data as unknown[]) : []).map(obj);
-  const alvo = process.env.META_PAGE_ID ? paginas.find((p) => str(p.id) === process.env.META_PAGE_ID) : paginas[0];
+  const alvo = process.env.META_PAGE_ID
+    ? paginas.find((p) => str(p.id) === process.env.META_PAGE_ID)
+    : comInstagram ? paginas.find((p) => str(obj(p.instagram_business_account).id)) ?? paginas[0] : paginas[0];
   if (!alvo) throw new Error("Nenhuma Página do Facebook encontrada para esta conta (ou a Página indicada em META_PAGE_ID não foi autorizada).");
   const ig = obj(alvo.instagram_business_account);
   return {
@@ -129,7 +131,7 @@ async function insightsIg(conta: ContaAtiva, idExterno: string, _formato: Format
 export const instagram: Provedor = {
   rede: "instagram", ...base("instagram", ESCOPOS_IG),
   async trocarCodigo({ code, redirectUri }) {
-    const { tokens, pagina } = await trocarCodigoMeta(code, redirectUri);
+    const { tokens, pagina } = await trocarCodigoMeta(code, redirectUri, true);
     if (!pagina.igId) throw new Error("A Página do Facebook encontrada não tem uma conta profissional do Instagram vinculada.");
     const u = await get(`/${pagina.igId}`, pagina.token, { fields: "username,name" });
     const perfil: PerfilConta = { contaExternaId: pagina.igId, nome: str(obj(u.json).username) ? `@${str(obj(u.json).username)}` : "Instagram", meta: { pageId: pagina.id } };

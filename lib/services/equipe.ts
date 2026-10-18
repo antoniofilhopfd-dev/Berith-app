@@ -155,3 +155,15 @@ export async function rejeitarPessoa(actor: number, userId: number) {
   await execute("UPDATE users SET status = 'suspenso' WHERE id = ? AND status = 'pendente'", [userId]);
   await audit(actor, "equipe.rejeitar", { entidade: "user", entidadeId: userId });
 }
+
+/** Carga de trabalho por pessoa (produções em aberto por situação). Para coordenação acompanhar a equipe. */
+export async function cargaDaEquipe(actor: number): Promise<Map<number, { aberto: number; revisao: number; ajustes: number; atrasadas: number; publicadasMes: number }>> {
+  await assertCan(actor, "equipe", "ver");
+  const r = await query<RowDataPacket>(
+    `SELECT responsavel_id AS id,
+       SUM(status IN ('rascunho','em_producao')) AS aberto, SUM(status = 'em_revisao') AS revisao, SUM(status = 'ajustes_solicitados') AS ajustes,
+       SUM(status IN ('rascunho','em_producao','ajustes_solicitados') AND prazo IS NOT NULL AND prazo < UTC_TIMESTAMP()) AS atrasadas,
+       SUM(status = 'publicado' AND atualizado_em >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)) AS publicadas
+     FROM publicacoes WHERE responsavel_id IS NOT NULL GROUP BY responsavel_id`);
+  return new Map(r.map((x) => [Number(x.id), { aberto: Number(x.aberto), revisao: Number(x.revisao), ajustes: Number(x.ajustes), atrasadas: Number(x.atrasadas), publicadasMes: Number(x.publicadas) }]));
+}

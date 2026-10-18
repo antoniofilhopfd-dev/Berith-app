@@ -1,5 +1,5 @@
 {
-  "name": "nova-berith",
+  "name": "berith-app",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -21,7 +21,8 @@
     "admin:sql": "node scripts/admin-sql.mjs",
     "verificar": "node scripts/verificar-ambiente.mjs",
     "manutencao": "node scripts/manutencao.mjs",
-    "lgpd": "node scripts/lgpd.mjs"
+    "lgpd": "node scripts/lgpd.mjs",
+    "limpar:legado": "node scripts/limpar-legado.mjs"
   },
   "dependencies": {
     "bcryptjs": "3.0.3",
@@ -29,6 +30,7 @@
     "mysql2": "3.24.5",
     "next": "16.4.0",
     "nodemailer": "10.0.16",
+    "pdf-lib": "1.17.1",
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",

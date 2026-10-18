@@ -4,7 +4,7 @@ import { Pwa } from "@/components/pwa";
 
 export const metadata: Metadata = {
   title: "Nova Berith",
-  description: "Aplicativo da Comunidade Católica Nova Berith",
+  description: "Gestão de redes sociais do Ministério de Comunicação da Comunidade Católica Nova Berith",
   robots: { index: false, follow: false },
   icons: { icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/icons/apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "Nova Berith", statusBarStyle: "default" },

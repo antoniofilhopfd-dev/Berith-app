@@ -1,129 +1,108 @@
 // SOMENTE DESENVOLVIMENTO: dados fictícios para testes visuais. Recusa rodar em produção.
+// Uso: PERMITIR_SEED=sim SEED_MIDIAS_DIR=/caminho/com/imagens node --env-file=.env.local scripts/seed-demo.mjs
+// (SEED_MIDIAS_DIR é opcional: pasta com manifesto.json + arquivos de imagem/vídeo de exemplo.)
 import mysql from "mysql2/promise";
 import bcrypt from "bcryptjs";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
+import path from "node:path";
 
 if (process.env.NODE_ENV === "production" || process.env.PERMITIR_SEED !== "sim") {
   console.error("Recusado. Use apenas em desenvolvimento com PERMITIR_SEED=sim.");
   process.exit(1);
 }
-const c = await mysql.createConnection({
-  host: process.env.DB_HOST, port: Number(process.env.DB_PORT ?? 3306),
-  database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD,
-});
+const c = await mysql.createConnection({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT ?? 3306), database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD, timezone: "Z" });
 const hash = await bcrypt.hash("Demo-Senha-12345", 12);
-const unit = async (tipo, nome, parent = null, desc = null) =>
-  (await c.execute("INSERT INTO org_units (tipo, nome, descricao, parent_id) VALUES (?,?,?,?)", [tipo, nome, desc, parent]))[0].insertId;
-const user = async (nome, email, status = "ativo") =>
-  (await c.execute("INSERT INTO users (nome, email, senha_hash, status) VALUES (?,?,?,?)", [nome, email, hash, status]))[0].insertId;
-const role = async (u, codigo, scope = null) =>
-  c.execute("INSERT INTO user_roles (user_id, role_id, scope_unit_id, scope_unit_id_key) SELECT ?, id, ?, ? FROM roles WHERE codigo=?", [u, scope, scope ?? 0, codigo]);
-const memb = (u, un, f = null) => c.execute("INSERT INTO memberships (user_id, unit_id, funcao, inicio) VALUES (?,?,?, '2024-03-01')", [u, un, f]);
+const ins = async (sql, p = []) => (await c.query(sql, p))[0].insertId;
 
-const com = await unit("comunidade", "Comunidade Nova Berith");
-const cam1 = await unit("caminho", "Caminho de Iniciação", com, "Primeiros passos na vida comunitária.");
-const cam2 = await unit("caminho", "Caminho de Aprofundamento", com);
-const mus = await unit("ministerio", "Ministério de Música", cam1);
-const lit = await unit("ministerio", "Ministério de Liturgia", cam2);
-const coral = await unit("grupo", "Coral", mus);
-const acolhida = await unit("servico", "Acolhida", lit, "Recepção nas celebrações.");
+/** Instante UTC de "daqui a n dias, HH:MM" no fuso de São Paulo (UTC-3, sem horário de verão). */
+const loc = (dias, hhmm = "12:00") => {
+  const agora = new Date(Date.now() - 3 * 3600_000); const [h, m] = hhmm.split(":").map(Number);
+  return new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate() + dias, h + 3, m));
+};
 
-const ana = await user("Ana Beatriz Souza", "ana@exemplo.com");
-const bruno = await user("Bruno Carvalho", "bruno@exemplo.com");
-const carla = await user("Carla Menezes", "carla@exemplo.com");
-const davi = await user("Davi Ribeiro", "davi@exemplo.com");
-const fin = await user("Elisa Tesoureira", "elisa@exemplo.com");
-await role(ana, "coord_ministerio", mus);
-await role(bruno, "coord_ministerio", lit);
-await role(fin, "resp_financeiro");
-await memb(ana, mus, "Coordenadora"); await memb(carla, mus, "Cantora"); await memb(carla, coral);
-await memb(bruno, lit, "Coordenador"); await memb(davi, acolhida, "Acolhedor");
-for (const u of [ana, bruno, carla, davi, fin]) await c.execute("INSERT IGNORE INTO member_profiles (user_id, telefone) VALUES (?, ?)", [u, "(11) 90000-000" + (u % 10)]);
+/* ----- Equipe ----- */
+const pessoa = async (nome, email, perfil) => {
+  const id = await ins("INSERT INTO users (nome, email, senha_hash, status) VALUES (?,?,?, 'ativo')", [nome, email, hash]);
+  await c.query("INSERT INTO user_roles (user_id, role_id, scope_unit_id, scope_unit_id_key) SELECT ?, id, NULL, 0 FROM roles WHERE codigo = ?", [id, perfil]);
+  await c.query("INSERT IGNORE INTO member_profiles (user_id, telefone) VALUES (?, ?)", [id, "(11) 98888-0000"]);
+  return id;
+};
+const ana = await pessoa("Ana Coordenadora", "ana@exemplo.com", "coordenador");
+const bruno = await pessoa("Bruno Souza", "bruno@exemplo.com", "integrante");
+const carla = await pessoa("Carla Mendes", "carla@exemplo.com", "integrante");
+const davi = await pessoa("Davi Aprovador", "davi@exemplo.com", "aprovador");
+await ins("INSERT INTO users (nome, email, senha_hash, status) VALUES ('Sem Perfil', 'sem@exemplo.com', ?, 'ativo')", [hash]);
+const [[adm]] = await c.query("SELECT u.id FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id AND r.codigo = 'admin' LIMIT 1");
+const admin = adm?.id ?? ana;
 
-const helio = await user("Hélio Prado", "helio@exemplo.com");
-await role(helio, "resp_servico", acolhida);
-await memb(helio, acolhida, "Responsável"); await memb(carla, acolhida, "Acolhedora");
-await c.execute("INSERT IGNORE INTO member_profiles (user_id) VALUES (?)", [helio]);
-const mariana = await user("Mariana Souto", "mariana@exemplo.com");
-await role(mariana, "resp_comunicacao");
-await c.execute("INSERT IGNORE INTO member_profiles (user_id) VALUES (?)", [mariana]);
-// Pendente aguardando aprovação para Música
-const pend = await user("Felipe Andrade", "felipe@exemplo.com", "pendente");
-const inv = (await c.execute("INSERT INTO invitations (email, nome, token_hash, convidado_por, expira_em, aceito_em) VALUES (?,?,?,?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 DAY), UTC_TIMESTAMP())",
-  ["felipe@exemplo.com", "Felipe Andrade", createHash("sha256").update("demo-aceito").digest("hex"), ana]))[0].insertId;
-await c.execute("INSERT INTO invitation_units (invitation_id, unit_id, funcao) VALUES (?,?,?)", [inv, mus, "Violonista"]);
-await c.execute("INSERT INTO user_invitation (user_id, invitation_id) VALUES (?,?)", [pend, inv]);
-// Convite aberto (token conhecido só em dev)
-const inv2 = (await c.execute("INSERT INTO invitations (email, nome, token_hash, convidado_por, expira_em) VALUES (?,?,?,?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 DAY))",
-  ["gabriela@exemplo.com", "Gabriela Lima", createHash("sha256").update("demo-convite-aberto").digest("hex"), ana]))[0].insertId;
-await c.execute("INSERT INTO invitation_units (invitation_id, unit_id, funcao) VALUES (?,?,NULL)", [inv2, mus]);
-// ---- Eventos e comunicados (datas relativas a hoje; fuso fixo -03:00 só para a demonstração)
-const dia = (n, hh, mm = 0) => { const d = new Date(Date.now() + n * 86400_000); d.setUTCHours(hh + 3, mm, 0, 0); return d; };
-const ate = (n) => new Date(Date.now() + n * 86400_000).toISOString().slice(0, 10);
-const evento = async (unitId, titulo, inicio, fim, extra = {}) => (await c.execute(
-  `INSERT INTO events (unit_id, titulo, descricao, local, inicio, fim, responsavel_id, limite_participantes, recorrencia, recorrencia_ate, criado_por)
-   VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-  [unitId, titulo, extra.desc ?? null, extra.local ?? null, inicio, fim, extra.resp ?? 1, extra.limite ?? null, extra.rec ?? "nenhuma", extra.ate ?? null, 1]))[0].insertId;
-await evento(null, "Missa da Comunidade", dia(1, 19), dia(1, 20, 30), { local: "Capela Nova Berith", desc: "Celebração semanal aberta a todos os membros.", rec: "semanal", ate: ate(120) });
-const retiro = await evento(null, "Retiro de Advento", dia(12, 8), dia(12, 17), { local: "Casa de Retiros São José", limite: 30, desc: "Um dia de oração e partilha. Inscrição por confirmação no app." });
-await evento(mus, "Ensaio do Ministério de Música", dia(2, 20), dia(2, 21, 30), { local: "Salão paroquial", resp: ana, rec: "semanal", ate: ate(90) });
-await evento(lit, "Reunião de Liturgia", dia(4, 19, 30), dia(4, 21), { local: "Sala 2", resp: bruno });
-await evento(coral, "Ensaio extra do Coral", dia(5, 18), dia(5, 19, 30), { local: "Capela", resp: ana, limite: 12 });
-for (const u of [1, ana, carla, bruno, davi]) await c.execute("INSERT IGNORE INTO event_rsvps (event_id, occurrence_date, user_id, status) VALUES (?,?,?, 'confirmado')", [retiro, ate(12), u]);
-const com1 = (await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, criado_por) VALUES (NULL,?,?,?,UTC_TIMESTAMP(),1)",
-  ["Inscrições abertas para o Retiro de Advento", "Estão abertas as inscrições para o Retiro de Advento. Confirme sua presença na agenda do aplicativo; as vagas são limitadas.", "importante"]))[0].insertId;
-await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, criado_por) VALUES (?,?,?,?,UTC_TIMESTAMP(),?)",
-  [mus, "Repertório da próxima celebração", "Pessoal da Música: o repertório está definido. Ensaio na quarta, 20h, no salão paroquial.", "normal", ana]);
-await c.execute("INSERT INTO announcements (unit_id, titulo, corpo, prioridade, publicar_em, expira_em, criado_por) VALUES (NULL,?,?,?,UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(), INTERVAL 2 DAY),1)",
-  ["Mudança de local da missa", "Por causa de obras, a missa desta semana será no salão paroquial.", "urgente"]);
-await c.execute("INSERT INTO announcement_reads (announcement_id, user_id) VALUES (?,?)", [com1, ana]);
-// ---- Escalas, tarefas, reuniões, presença
-const agoraMais = (n, h, m = 0) => dia(n, h, m);
-const shift = async (unitId, titulo, ini, fim) => (await c.execute("INSERT INTO shifts (unit_id, titulo, inicio, fim, criado_por) VALUES (?,?,?,?,?)", [unitId, titulo, ini, fim, helio]))[0].insertId;
-const s1 = await shift(acolhida, "Missa de domingo — 1ª celebração", agoraMais(3, 8), agoraMais(3, 10));
-await c.execute("INSERT INTO shift_assignments (shift_id, user_id, funcao, status) VALUES (?,?,?,?)", [s1, davi, "Porta principal", "confirmado"]);
-await c.execute("INSERT INTO shift_assignments (shift_id, user_id, funcao, status) VALUES (?,?,?,?)", [s1, carla, "Entrega de folhetos", "pendente"]);
-const s2 = await shift(acolhida, "Missa de domingo — 2ª celebração", agoraMais(3, 18), agoraMais(3, 20));
-await c.execute("INSERT INTO shift_assignments (shift_id, user_id, funcao, status) VALUES (?,?,?,?)", [s2, davi, "Porta principal", "pendente"]);
-await evento(mus, "Ensaio geral (hoje)", new Date(Date.now() - 30 * 60_000), new Date(Date.now() + 90 * 60_000), { local: "Salão paroquial", resp: ana });
-const tk = async (unitId, titulo, resp, prazoDias, prio, status = "aberta") => (await c.execute(
-  "INSERT INTO tasks (unit_id, titulo, descricao, prazo, prioridade, status, responsavel_id, criado_por) VALUES (?,?,?,?,?,?,?,?)",
-  [unitId, titulo, null, ate(prazoDias), prio, status, resp, ana]))[0].insertId;
-await tk(mus, "Preparar as partituras do Advento", carla, 3, "alta");
-await tk(mus, "Reservar o salão para o ensaio extra", ana, -2, "media", "em_andamento");
-await tk(mus, "Revisar o repertório da vigília", carla, 10, "baixa", "concluida");
-const reu = (await c.execute("INSERT INTO meetings (unit_id, titulo, inicio, fim, local, pauta, criado_por) VALUES (?,?,?,?,?,?,?)",
-  [mus, "Reunião do Ministério de Música", agoraMais(4, 20), agoraMais(4, 21, 30), "Sala 2", "1. Oração inicial\n2. Repertório do Advento\n3. Escala dos ensaios\n4. Assuntos gerais", ana]))[0].insertId;
-for (const u of [ana, carla]) await c.execute("INSERT INTO meeting_participants (meeting_id, user_id) VALUES (?,?)", [reu, u]);
-// ---- Liturgia: SOMENTE exemplos fictícios para demonstrar o layout (não é conteúdo litúrgico real)
-const hojeISO = new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
-const fonteDemo = "Demonstração do sistema (conteúdo fictício)";
-for (const [tipo, titulo, texto] of [
-  ["evangelho", "Exemplo de cadastro — referência do Evangelho", "Este é um texto de demonstração para mostrar o layout da página. O conteúdo real deve ser cadastrado por pessoa autorizada, com a fonte e a autorização de uso."],
-  ["santo", "Exemplo de cadastro — santo do dia", "Texto de demonstração. Informe a biografia resumida e a fonte consultada."],
-  ["laudes", "Exemplo de cadastro — Laudes", null],
-]) await c.execute("INSERT INTO liturgia_itens (data, tipo, titulo, texto, fonte_nome, direitos, criado_por) VALUES (?,?,?,?,?,?,?)", [hojeISO, tipo, titulo, texto, fonteDemo, "Sem conteúdo protegido", mariana]);
-// ---- Formação (SOMENTE exemplos fictícios de demonstração; não são textos oficiais)
-const cont = async (unitId, categoria, titulo, resumo, corpo) => (await c.execute(
-  "INSERT INTO conteudos (unit_id, categoria, titulo, resumo, corpo, fonte_nome, direitos, criado_por) VALUES (?,?,?,?,?,?,?,?)",
-  [unitId, categoria, titulo, resumo, corpo, fonteDemo, "Sem conteúdo protegido", mariana]))[0].insertId;
-const cA = await cont(null, "oracao", "Exemplo de oração (demonstração)", "Texto de demonstração para mostrar o layout.", "Este é um texto de demonstração. As orações reais devem ser cadastradas por pessoa autorizada, com a fonte.");
-const cB = await cont(null, "catequese", "Exemplo de catequese (demonstração)", "Introdução fictícia ao tema.", "Conteúdo de demonstração sobre catequese.");
-const cC = await cont(mus, "formacao", "Exemplo de formação do Ministério de Música (demonstração)", "Visível somente para a Música.", "Conteúdo exclusivo da estrutura, apenas para demonstração.");
-const tr = (await c.execute("INSERT INTO trilhas (unit_id, titulo, descricao, criado_por) VALUES (NULL,?,?,?)", ["Trilha de iniciação (demonstração)", "Sequência de exemplo para mostrar o progresso.", mariana]))[0].insertId;
-for (const [i, id] of [cA, cB].entries()) await c.execute("INSERT INTO trilha_itens (trilha_id, conteudo_id, ordem) VALUES (?,?,?)", [tr, id, i + 1]);
-// ---- Financeiro: mês passado aprovado (valores fictícios); Elisa lança, o administrador aprova
-const mesPassado = new Date(Date.now() - 3 * 3600_000); mesPassado.setUTCMonth(mesPassado.getUTCMonth() - 1, 12);
-const dMP = (d) => `${mesPassado.getUTCFullYear()}-${String(mesPassado.getUTCMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-const [[conta]] = await c.execute("SELECT id FROM fin_contas ORDER BY id LIMIT 1");
-const cat = async (nome, tipo) => (await c.execute("SELECT id FROM fin_categorias WHERE nome = ? AND tipo = ?", [nome, tipo]))[0][0].id;
-const lan = async (tipo, categoria, centavos, dia, desc, doador = null) => c.execute(
-  "INSERT INTO fin_lancamentos (conta_id, categoria_id, tipo, valor_centavos, data, descricao, doador_user_id, status, criado_por, aprovado_por, aprovado_em) VALUES (?,?,?,?,?,?,?, 'aprovado', ?, 1, UTC_TIMESTAMP())",
-  [conta.id, await cat(categoria, tipo), tipo, centavos, dMP(dia), desc, doador, fin]);
-await lan("entrada", "Contribuição", 120000, 3, "Contribuições do mês", carla);
-await lan("entrada", "Doação", 45000, 8, "Doação para a casa de retiros");
-await lan("entrada", "Oferta / coleta", 83050, 15, "Coletas das celebrações");
-await lan("saida", "Manutenção", 32075, 10, "Conserto da porta do salão");
-await lan("saida", "Material litúrgico", 21500, 18, "Velas e toalhas");
-console.log("Seed concluído. Senha de todos: Demo-Senha-12345");
+/* ----- Planejamento ----- */
+const [[ed]] = await c.query("SELECT (SELECT id FROM editorias WHERE nome='Evangelização') ev, (SELECT id FROM editorias WHERE nome='Eventos') evt, (SELECT id FROM editorias WHERE nome='Institucional') ins, (SELECT id FROM editorias WHERE nome='Testemunhos') tes");
+const advento = await ins("INSERT INTO campanhas (nome, objetivo, descricao, inicio, fim, cor, status, responsavel_id, criado_por) VALUES ('Advento 2026','Preparar a comunidade para o Natal','Série de conteúdos semanais, novena e retiro.', ?, ?, '#b07840','ativa',?,?)", [loc(-10).toISOString().slice(0, 10), loc(60).toISOString().slice(0, 10), ana, ana]);
+const vocacional = await ins("INSERT INTO campanhas (nome, objetivo, inicio, fim, cor, status, responsavel_id, criado_por) VALUES ('Semana Vocacional','Despertar vocações','2027-04-12','2027-04-18','#3f6f8f','planejada',?,?)", [bruno, ana]);
+await ins("INSERT INTO ideias (titulo, descricao, editoria_id, campanha_id, redes, prioridade, status, criado_por) VALUES ('Série: 5 minutos com a Palavra','Vídeos curtos com uma reflexão do Evangelho.',?,?, 'instagram,tiktok,youtube','alta','nova',?)", [ed.ev, advento, carla]);
+await ins("INSERT INTO ideias (titulo, descricao, editoria_id, redes, prioridade, status, criado_por) VALUES ('Bastidores da missão','Fotos e vídeos da equipe em ação.',?, 'instagram','media','em_analise',?)", [ed.tes, bruno]);
+await ins("INSERT INTO ideias (titulo, editoria_id, prioridade, status, criado_por) VALUES ('Mural de intenções',?, 'baixa','aprovada',?)", [ed.ins, carla]);
+await ins("INSERT INTO datas_especiais (nome, dia, anual, criado_por) VALUES ('Aniversário da comunidade','2020-03-10',1,?)", [ana]);
+
+/* ----- Biblioteca de mídia ----- */
+const ids = {};
+const dir = process.env.SEED_MIDIAS_DIR;
+if (dir) {
+  const storage = path.resolve(process.env.STORAGE_DIR || "storage");
+  const pasta = await ins("INSERT INTO midia_pastas (nome, criado_por) VALUES ('Advento 2026', ?)", [ana]);
+  for (const m of JSON.parse(await readFile(path.join(dir, "manifesto.json"), "utf8"))) {
+    const dados = await readFile(path.join(dir, m.arquivo));
+    const nome = randomBytes(16).toString("hex");
+    await mkdir(path.join(storage, nome.slice(0, 2)), { recursive: true, mode: 0o700 });
+    await copyFile(path.join(dir, m.arquivo), path.join(storage, nome.slice(0, 2), nome));
+    ids[m.arquivo.replace(/\.[^.]+$/, "")] = await ins("INSERT INTO midias (arquivo, nome_original, mime, tipo, tamanho, sha256, largura, altura, pasta_id, descricao, texto_alternativo, criado_por) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      [nome, m.nome, m.mime, m.tipo, dados.length, createHash("sha256").update(dados).digest("hex"), m.largura, m.altura, m.arquivo.includes("advento") || m.arquivo.includes("novena") ? pasta : null, null, m.tipo === "imagem" ? `Arte: ${m.nome.replace(/\..*/, "").replace(/-/g, " ")}` : null, ana]);
+  }
+  for (const e of ["advento", "natal"]) { await c.query("INSERT IGNORE INTO midia_etiquetas (nome) VALUES (?)", [e]); }
+  if (ids["retiro-advento"]) await c.query("INSERT INTO midia_etiqueta_rel (midia_id, etiqueta_id) SELECT ?, id FROM midia_etiquetas WHERE nome IN ('advento')", [ids["retiro-advento"]]);
+}
+
+/* ----- Publicações ----- */
+const redesDe = (r) => r.map((x) => (typeof x === "string" ? { rede: x } : x));
+async function pub(o) {
+  const id = await ins(
+    `INSERT INTO publicacoes (titulo, descricao, objetivo, formato, status, campanha_id, editoria_id, responsavel_id, prioridade, prazo, publicar_em, legenda, hashtags, versao, criado_por, criado_em)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?, UTC_TIMESTAMP())`,
+    [o.titulo, o.descricao ?? null, o.objetivo ?? null, o.formato ?? "post", o.status, o.campanha ?? null, o.editoria ?? null, o.resp, o.prioridade ?? "media", o.prazo ?? null, o.quando ?? null, o.legenda ?? null, o.hashtags ?? "#NovaBerith", o.autor ?? o.resp]);
+  for (const r of redesDe(o.redes ?? ["instagram"])) {
+    await c.query("INSERT INTO publicacao_redes (publicacao_id, rede, envio, agendada_para, publicada_em, assistida, post_externo_id, url_externa, ultimo_erro, tentativas) VALUES (?,?,?,?,?,?,?,?,?,?)",
+      [id, r.rede, r.envio ?? (o.status === "agendado" ? "agendada" : o.status === "publicado" ? "publicada" : "pendente"), (r.envio ?? o.status) === "agendada" || o.status === "agendado" ? o.quando : null, r.envio === "publicada" || (o.status === "publicado" && !r.envio) ? o.quando : null, r.assistida ?? 0, r.externo ?? null, r.url ?? null, r.erro ?? null, r.tentativas ?? 0]);
+  }
+  (o.midias ?? []).forEach((m, i) => ids[m] && c.query("INSERT INTO publicacao_midias (publicacao_id, midia_id, ordem) VALUES (?,?,?)", [id, ids[m], i]));
+  const snap = JSON.stringify({ titulo: o.titulo, descricao: o.descricao ?? null, objetivo: o.objetivo ?? null, formato: o.formato ?? "post", legenda: o.legenda ?? null, hashtags: o.hashtags ?? "#NovaBerith", referencias: null, observacoes: null, redes: redesDe(o.redes ?? ["instagram"]).map((r) => ({ rede: r.rede, legenda: null, hashtags: null, tituloExterno: null })), midiaIds: (o.midias ?? []).map((m) => ids[m]).filter(Boolean) });
+  await c.query("INSERT INTO publicacao_versoes (publicacao_id, versao, dados, motivo, autor_id) VALUES (?,1,?, 'Versão inicial', ?)", [id, snap, o.resp]);
+  await c.query("INSERT INTO publicacao_historico (publicacao_id, user_id, acao, para_status) VALUES (?,?, 'criar', 'rascunho')", [id, o.resp]);
+  if (["em_revisao", "ajustes_solicitados", "aprovado", "agendado", "publicado"].includes(o.status)) await c.query("INSERT INTO publicacao_historico (publicacao_id, user_id, acao, de_status, para_status) VALUES (?,?, 'status','em_producao','em_revisao')", [id, o.resp]);
+  if (["aprovado", "agendado", "publicado"].includes(o.status)) {
+    await c.query("INSERT INTO aprovacoes (publicacao_id, versao, decisao, user_id, comentario) VALUES (?,1,'aprovado',?, 'Aprovado.')", [id, davi]);
+    await c.query("INSERT INTO publicacao_historico (publicacao_id, user_id, acao, de_status, para_status) VALUES (?,?, 'aprovar','em_revisao','aprovado')", [id, davi]);
+  }
+  return id;
+}
+const L = (t) => t.trim();
+await pub({ titulo: "Convite: Retiro de Advento", formato: "carrossel", status: "agendado", redes: ["instagram", "facebook"], resp: bruno, campanha: advento, editoria: ed.evt, quando: loc(2, "19:00"), prazo: loc(1, "12:00"), midias: ["retiro-advento", "novena-natal"], legenda: L("Venha viver o Retiro de Advento com a comunidade! 🕯️\nInscrições abertas pelo link na bio."), hashtags: "#NovaBerith #Advento #Retiro", prioridade: "alta" });
+await pub({ titulo: "Novena de Natal — dia 1", status: "em_revisao", redes: ["instagram"], resp: carla, campanha: advento, editoria: ed.ev, quando: loc(5, "19:00"), midias: ["novena-natal"], legenda: "Começa hoje a nossa Novena de Natal. Reze conosco!", hashtags: "#NovaBerith #Natal" });
+await pub({ titulo: "Retiro em 60 segundos", formato: "video", status: "em_producao", redes: ["facebook", "tiktok", "youtube"], resp: bruno, campanha: advento, editoria: ed.evt, quando: loc(7, "12:00"), prazo: loc(3, "18:00"), midias: ["retiro-60s"], legenda: "Um resumo do último retiro em um minuto.", hashtags: "#NovaBerith #Retiro" });
+await pub({ titulo: "Santa Missa de domingo", status: "aprovado", redes: ["facebook"], resp: carla, editoria: ed.ins, quando: loc(3, "12:00"), midias: ["missa-domingo"], legenda: "Domingo, às 18h30. Esperamos você!" });
+await pub({ titulo: "Nossa Senhora Aparecida", status: "publicado", redes: [{ rede: "instagram", envio: "publicada", externo: "demo-ig-1" }, { rede: "facebook", envio: "publicada", assistida: 1 }], resp: bruno, editoria: ed.ev, quando: loc(-6, "12:00"), midias: ["nossa-senhora"], legenda: "Nossa Senhora Aparecida, rogai por nós! 🙏", hashtags: "#NovaBerith #NossaSenhoraAparecida" });
+await pub({ titulo: "Testemunho: Maria", status: "publicado", redes: [{ rede: "instagram", envio: "publicada", externo: "demo-ig-2" }], resp: carla, editoria: ed.tes, quando: loc(-12, "19:00"), midias: ["testemunho"], legenda: "\"Deus me encontrou no caminho.\" Conheça a história da Maria." });
+await pub({ titulo: "Frase do dia", formato: "stories", status: "rascunho", redes: ["instagram"], resp: carla, editoria: ed.ev, quando: loc(1, "08:00"), midias: ["frase-dia"] });
+const aj = await pub({ titulo: "Bastidores da missão", status: "ajustes_solicitados", redes: ["instagram"], resp: bruno, editoria: ed.tes, quando: loc(9, "12:00"), midias: ["capa-quadrada"], legenda: "Um pouco do que vivemos nas missões." });
+await c.query("INSERT INTO pub_comentarios (publicacao_id, user_id, texto, tipo) VALUES (?,?,'Trocar a imagem por uma foto real da missão e incluir o horário do encontro.','ajuste')", [aj, davi]);
+await c.query("UPDATE publicacoes SET status='ajustes_solicitados' WHERE id=?", [aj]);
+await pub({ titulo: "Aviso da secretaria", status: "agendado", redes: [{ rede: "instagram", envio: "publicada", externo: "demo-ig-3" }, { rede: "facebook", envio: "falhou", erro: "HTTP 400: imagem inválida (exemplo de falha de publicação)", tentativas: 1 }], resp: bruno, editoria: ed.ins, quando: loc(-1, "12:00"), midias: ["missa-domingo"], legenda: "Atenção ao novo horário da secretaria." });
+for (let i = 0; i < 6; i++) await pub({ titulo: ["Oração da manhã", "Reflexão semanal", "Agenda da semana", "Dica de leitura", "Santo do mês", "Pedido de oração"][i], status: i % 2 ? "agendado" : "aprovado", redes: [i % 3 === 0 ? "facebook" : "instagram"], resp: i % 2 ? bruno : carla, editoria: ed.ev, quando: loc(10 + i * 3, i % 2 ? "12:00" : "19:00"), midias: [["frase-dia", "missa-domingo"][i % 2]], legenda: "Conteúdo de exemplo (dados fictícios para demonstração)." });
+
+/* ----- Métricas fictícias (somente para visualizar os relatórios em desenvolvimento) ----- */
+const [pr] = await c.query("SELECT r.id, r.rede FROM publicacao_redes r WHERE r.post_externo_id LIKE 'demo-%'");
+for (const r of pr) await c.query("INSERT INTO metricas_publicacao (publicacao_rede_id, alcance, curtidas, comentarios, compartilhamentos, salvamentos, visualizacoes) VALUES (?,?,?,?,?,?,?)", [r.id, 1200 + r.id * 37, 85 + r.id * 3, 9, 14, 21, 2100]);
+await c.query("INSERT INTO metricas_conta (rede, dia, seguidores) VALUES ('instagram', DATE_SUB(CURDATE(), INTERVAL 25 DAY), 2310), ('instagram', CURDATE(), 2384)");
+await c.query("INSERT INTO notificacoes (user_id, tipo, titulo, corpo, url, dedupe_key) VALUES (?, 'aprovacao', 'Aguardando aprovação: Novena de Natal — dia 1', NULL, '/aprovacoes', 'seed:1')", [davi]);
 await c.end();
+console.log("Seed concluído. Senha de todos (exceto o administrador criado por você): Demo-Senha-12345");

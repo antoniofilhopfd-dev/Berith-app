@@ -17,7 +17,7 @@ try {
   const hash = await bcrypt.hash(senha, 12);
   const [r] = await conn.execute(
     "INSERT INTO users (nome, email, senha_hash, status) VALUES (?, ?, ?, 'ativo')", [nome, email.toLowerCase(), hash]);
-  const [[role]] = await conn.execute("SELECT id FROM roles WHERE codigo = 'admin_geral'");
+  const [[role]] = await conn.execute("SELECT id FROM roles WHERE codigo = 'admin'");
   await conn.execute("INSERT INTO user_roles (user_id, role_id, scope_unit_id, scope_unit_id_key) VALUES (?, ?, NULL, 0)", [r.insertId, role.id]);
   console.log(`Administrador criado (id ${r.insertId}).`);
 } catch (e) {

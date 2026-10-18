@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const itens = itensVisiveis(perms);
   const badges = await contagensMenu(user.id, perms);
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr]">
+    <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
       <a href="#conteudo" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2">Pular para o conteúdo</a>
       <aside className="hidden bg-lateral px-3 py-4 text-white lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
         <Link href="/" aria-label="Berith — início" className="mb-5 block px-2"><Image src="/brand/logo-branco.png" alt="Nova Berith — Comunidade Católica" width={900} height={544} priority className="h-[56px] w-auto" /></Link>

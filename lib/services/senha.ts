@@ -1,6 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { execute, query, tx } from "@/lib/db";
-import { hashPassword } from "@/lib/auth/password";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { assertCan } from "@/lib/permissions";
 import { audit } from "./audit";
 import { DomainError } from "./errors";
@@ -61,4 +61,32 @@ export async function resetPassword(token: string, novaSenha: string, ip: string
     return rows[0].user_id as number;
   });
   await audit(userId, "senha.redefinir", { ip });
+}
+
+/** Troca a própria senha exigindo a atual; encerra todas as sessões (quem trocou entra de novo com a nova). */
+export async function trocarSenha(userId: number, atual: string, nova: string) {
+  const u = await query<RowDataPacket>("SELECT senha_hash FROM users WHERE id = ? AND status = 'ativo'", [userId]);
+  if (!u[0] || !(await verifyPassword(atual, u[0].senha_hash as string))) {
+    await audit(userId, "senha.trocar_falhou");
+    throw new DomainError("A senha atual está incorreta.");
+  }
+  if (atual === nova) throw new DomainError("A nova senha deve ser diferente da atual.");
+  await execute("UPDATE users SET senha_hash = ? WHERE id = ?", [await hashPassword(nova), userId]);
+  await execute("UPDATE sessions SET revogada_em = UTC_TIMESTAMP() WHERE user_id = ? AND revogada_em IS NULL", [userId]);
+  await audit(userId, "senha.trocar");
+}
+
+export type SessaoAtiva = { id: number; ip: string | null; user_agent: string | null; criado_em: Date; expira_em: Date; atual: boolean };
+export async function sessoesDoUsuario(userId: number, hashAtual: string | null): Promise<SessaoAtiva[]> {
+  const r = await query<RowDataPacket>(
+    "SELECT id, ip, user_agent, criado_em, expira_em, token_hash FROM sessions WHERE user_id = ? AND revogada_em IS NULL AND expira_em > UTC_TIMESTAMP() ORDER BY id DESC LIMIT 20", [userId]);
+  return r.map((x) => ({ id: Number(x.id), ip: x.ip, user_agent: x.user_agent, criado_em: x.criado_em, expira_em: x.expira_em, atual: x.token_hash === hashAtual }));
+}
+export async function encerrarSessao(userId: number, sessaoId: number) {
+  await execute("UPDATE sessions SET revogada_em = UTC_TIMESTAMP() WHERE id = ? AND user_id = ? AND revogada_em IS NULL", [sessaoId, userId]);
+  await audit(userId, "sessao.encerrar", { entidade: "sessao", entidadeId: sessaoId });
+}
+export async function encerrarOutrasSessoes(userId: number, hashAtual: string | null) {
+  await execute("UPDATE sessions SET revogada_em = UTC_TIMESTAMP() WHERE user_id = ? AND revogada_em IS NULL AND token_hash <> ?", [userId, hashAtual ?? ""]);
+  await audit(userId, "sessao.encerrar_outras");
 }

@@ -19,10 +19,10 @@ gzip -t "$BASE.sql.gz"   # integridade do arquivo compactado
 
 # Manifesto: contagens exatas para conferir a restauração.
 mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" --batch --skip-column-names "$DB_NAME" -e "
-  SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'org_units', COUNT(*) FROM org_units UNION ALL SELECT 'events', COUNT(*) FROM events
-  UNION ALL SELECT 'fin_lancamentos', COUNT(*) FROM fin_lancamentos UNION ALL SELECT 'files', COUNT(*) FROM files
+  SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'publicacoes', COUNT(*) FROM publicacoes UNION ALL SELECT 'publicacao_redes', COUNT(*) FROM publicacao_redes
+  UNION ALL SELECT 'midias', COUNT(*) FROM midias UNION ALL SELECT 'redes_contas', COUNT(*) FROM redes_contas
   UNION ALL SELECT 'audit_log', COUNT(*) FROM audit_log UNION ALL SELECT 'schema_migrations', COUNT(*) FROM schema_migrations
-  UNION ALL SELECT 'saldo_centavos', COALESCE(SUM(CASE WHEN status='aprovado' THEN IF(tipo='entrada',valor_centavos,-valor_centavos) END),0) FROM fin_lancamentos;" > "$BASE.manifesto.txt"
+  UNION ALL SELECT 'bytes_midia', COALESCE(SUM(tamanho),0) FROM midias;" > "$BASE.manifesto.txt"
 
 if [ -d "$STORAGE_DIR" ] && [ -n "$(ls -A "$STORAGE_DIR" 2>/dev/null)" ]; then
   tar -C "$STORAGE_DIR" -czf "$BASE.arquivos.tar.gz" . ; tar -tzf "$BASE.arquivos.tar.gz" > /dev/null

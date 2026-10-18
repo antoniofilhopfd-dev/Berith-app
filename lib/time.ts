@@ -51,3 +51,6 @@ export const DIAS = ["domingo", "segunda-feira", "terça-feira", "quarta-feira",
 export const DIAS_CURTOS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 export const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 export const brDate = (date: string) => date.split("-").reverse().join("/");
+
+/** Instante atual em ms (função à parte para páginas de servidor não chamarem Date.now() direto na renderização). */
+export const agoraMs = () => Date.now();

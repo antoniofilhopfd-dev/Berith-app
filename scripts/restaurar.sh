@@ -18,11 +18,11 @@ gunzip -c "$BASE.sql.gz" | "${M[@]}" --default-character-set=utf8mb4 "$DESTINO"
 
 CONF="$(mktemp)"; trap 'rm -f "$CONF"' EXIT
 "${M[@]}" --batch --skip-column-names "$DESTINO" -e "
-  SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'org_units', COUNT(*) FROM org_units UNION ALL SELECT 'events', COUNT(*) FROM events
-  UNION ALL SELECT 'fin_lancamentos', COUNT(*) FROM fin_lancamentos UNION ALL SELECT 'files', COUNT(*) FROM files
+  SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'publicacoes', COUNT(*) FROM publicacoes UNION ALL SELECT 'publicacao_redes', COUNT(*) FROM publicacao_redes
+  UNION ALL SELECT 'midias', COUNT(*) FROM midias UNION ALL SELECT 'redes_contas', COUNT(*) FROM redes_contas
   UNION ALL SELECT 'audit_log', COUNT(*) FROM audit_log UNION ALL SELECT 'schema_migrations', COUNT(*) FROM schema_migrations
-  UNION ALL SELECT 'saldo_centavos', COALESCE(SUM(CASE WHEN status='aprovado' THEN IF(tipo='entrada',valor_centavos,-valor_centavos) END),0) FROM fin_lancamentos;" > "$CONF"
-if diff -u "$BASE.manifesto.txt" "$CONF"; then echo "Contagens e saldo conferem com o manifesto. Restauração do banco: OK."; else echo "DIVERGÊNCIA entre manifesto e restauração!" >&2; exit 2; fi
+  UNION ALL SELECT 'bytes_midia', COALESCE(SUM(tamanho),0) FROM midias;" > "$CONF"
+if diff -u "$BASE.manifesto.txt" "$CONF"; then echo "Contagens conferem com o manifesto. Restauração do banco: OK."; else echo "DIVERGÊNCIA entre manifesto e restauração!" >&2; exit 2; fi
 FALHAS="$("${M[@]}" --batch --skip-column-names "$DESTINO" -e "SELECT COUNT(*) FROM schema_migrations WHERE resultado <> 'ok'")"
 [ "$FALHAS" = "0" ] || { echo "Há migrações com falha no backup." >&2; exit 3; }
 

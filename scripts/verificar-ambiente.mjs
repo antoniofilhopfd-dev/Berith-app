@@ -21,6 +21,8 @@ export async function verificar(env = process.env, opcoes = {}) {
   add("SESSION_SECRET não parece valor de exemplo", !FRACOS.some((f) => s.toLowerCase().includes(f)) && /[A-Z]/.test(s + "A") );
   add("Senha do banco não é a de exemplo", !FRACOS.some((f) => (env.DB_PASSWORD ?? "").toLowerCase().includes(f)));
   add("CRON_SECRET com 24+ caracteres (agendador/push)", (env.CRON_SECRET ?? "").length >= 24, "", false);
+  add("TOKEN_ENC_KEY com 32+ caracteres (cifra dos tokens das redes)", (env.TOKEN_ENC_KEY ?? "").length >= 32, "necessária só para conectar redes sociais", false);
+  add("TOKEN_ENC_KEY não parece valor de exemplo", !env.TOKEN_ENC_KEY || !FRACOS.some((f) => env.TOKEN_ENC_KEY.toLowerCase().includes(f)), "", false);
   add("Web Push configurado (VAPID)", Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT), "opcional", false);
   add("E-mail (SMTP) configurado", Boolean(env.SMTP_HOST && env.SMTP_FROM), "sem SMTP, links de senha/convite são entregues manualmente", false);
   add("APP_URL usa HTTPS", /^https:\/\//.test(env.APP_URL ?? ""), env.APP_URL ? "" : "ausente: links usam o host da requisição", false);
@@ -54,8 +56,8 @@ export async function verificar(env = process.env, opcoes = {}) {
       add("Migrações aplicadas", faltando.length === 0, faltando.length ? `pendentes: ${faltando.join(", ")} (serão aplicadas ao iniciar o app)` : `${arquivos.length} aplicadas`, false);
       add("Nenhuma migração com falha", falhas.length === 0, falhas.join(", "));
       add("Migrações aplicadas não foram editadas", divergentes.length === 0, divergentes.join(", "));
-      const [[adm]] = await conn.query("SELECT COUNT(*) n FROM user_roles ur JOIN roles r ON r.id = ur.role_id JOIN users u ON u.id = ur.user_id WHERE r.codigo = 'admin_geral' AND u.status = 'ativo'").catch(() => [[{ n: 0 }]]);
-      add("Existe administrador geral ativo", Number(adm.n) > 0, "crie com: npm run admin:sql", false);
+      const [[adm]] = await conn.query("SELECT COUNT(*) n FROM user_roles ur JOIN roles r ON r.id = ur.role_id JOIN users u ON u.id = ur.user_id WHERE r.codigo = 'admin' AND u.status = 'ativo'").catch(() => [[{ n: 0 }]]);
+      add("Existe administrador ativo", Number(adm.n) > 0, "crie com: npm run admin:sql", false);
     } else add("Conexão com o MySQL", false, "variáveis ausentes");
   } catch (e) { add("Conexão com o MySQL", false, e.code ?? e.message); }
   finally { if (conn && !opcoes.conn) await conn.end(); }

@@ -71,3 +71,9 @@ export async function requireUser(): Promise<SessionUser> {
 
 export class AuthError extends Error {}
 export const __test = { sha256 };
+
+/** Hash do token da sessão atual (para marcar "esta sessão" na lista). */
+export async function hashSessaoAtual(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? sha256(token) : null;
+}

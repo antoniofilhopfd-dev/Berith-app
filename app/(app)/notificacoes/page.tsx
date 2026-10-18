@@ -14,7 +14,7 @@ export default async function Notificacoes() {
   const naoLidas = lista.filter((n) => !n.lida_em).length;
   return (
     <div className="space-y-4">
-      <h1 className="font-titulo text-2xl text-verde">Notificações</h1>
+      <h1 className="font-titulo text-2xl text-verde-escuro">Notificações</h1>
       <Card>
         {lista.length === 0 ? <Empty>Nenhuma notificação por enquanto.</Empty> : (
           <>
@@ -32,6 +32,7 @@ export default async function Notificacoes() {
         )}
       </Card>
       <Card title="Neste dispositivo"><PushToggle /></Card>
+      <div id="preferencias" />
       <Card title="Preferências">
         <ActionForm action={preferenciasAction} submit="Salvar preferências" resetOnOk={false}>
           <fieldset className="space-y-1"><legend className="mb-1 text-sm font-medium">Quero ser avisado sobre</legend>

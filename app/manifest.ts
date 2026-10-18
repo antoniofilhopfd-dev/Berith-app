@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Nova Berith — Comunidade Católica",
-    short_name: "Nova Berith",
-    description: "Aplicativo da Comunidade Católica Nova Berith para os membros.",
+    name: "Berith — Ministério de Comunicação",
+    short_name: "Berith",
+    description: "Gestão de redes sociais do Ministério de Comunicação da Comunidade Católica Nova Berith.",
     lang: "pt-BR",
     start_url: "/",
     scope: "/",

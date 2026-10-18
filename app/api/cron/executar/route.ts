@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { gerarLembretes, processarFila, coletarMetricas } from "@/lib/services/agendamento";
 import { processarPush, pushConfigurado, segredoValido } from "@/lib/services/push";
 import { baseUrl } from "@/lib/auth/guard";
+import { setSetting } from "@/lib/services/configuracoes";
 
 export const dynamic = "force-dynamic";
 const resp = (b: unknown, status = 200) => NextResponse.json(b, { status, headers: { "Cache-Control": "no-store" } });
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
   const seguro = async <T,>(fn: () => Promise<T>): Promise<T | { erro: string }> => {
     try { return await fn(); } catch (e) { console.error("[cron]", e instanceof Error ? e.message : "erro"); return { erro: "falhou" }; }
   };
+  await seguro(() => setSetting("cron_ultima_execucao", new Date().toISOString()));
   const base = await baseUrl();
   const fila = await seguro(() => processarFila(base));
   const lembretes = await seguro(() => gerarLembretes());

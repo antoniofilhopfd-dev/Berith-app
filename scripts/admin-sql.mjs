@@ -14,4 +14,4 @@ const hash = await bcrypt.hash(senha, 12);
 console.log(`-- Execute UMA vez, depois que o app tiver iniciado e aplicado as migrações.
 INSERT INTO users (nome, email, senha_hash, status) VALUES (${esc(nome)}, ${esc(email.toLowerCase())}, ${esc(hash)}, 'ativo');
 INSERT INTO user_roles (user_id, role_id, scope_unit_id, scope_unit_id_key)
-  SELECT LAST_INSERT_ID(), id, NULL, 0 FROM roles WHERE codigo = 'admin_geral';`);
+  SELECT LAST_INSERT_ID(), id, NULL, 0 FROM roles WHERE codigo = 'admin';`);
