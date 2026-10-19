@@ -138,7 +138,7 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
   const link = (j: string, ano?: string) => `?janela=${j}${ano ? `&ano=${ano}` : ""}${cta}`;
   return (
     <div className="space-y-5">
-      <header className="relative overflow-hidden rounded-2xl border border-borda bg-cartao p-5">
+      <header className="relative overflow-hidden rounded-2xl border border-borda bg-cartao p-5 sm:pr-24">
         <div aria-hidden className="absolute right-4 top-4 hidden h-14 w-14 rounded-2xl sm:block" style={{ background: GRADIENTE_IG }} />
         <h1 className="font-titulo text-2xl text-verde-escuro sm:pr-20">Desempenho e conteúdo</h1>
         <p className="mt-1 max-w-2xl text-sm text-tinta/70">Crescimento, alcance, interação e formatos em uma visão própria de social media. Métricas sincronizadas automaticamente da API do Instagram{d.atualizadoEm ? ` (última: ${formatDateTime(d.atualizadoEm)})` : ""}.</p>

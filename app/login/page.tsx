@@ -12,7 +12,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (await getSessionUser()) redirect("/");
   const modo = await modoLogin();
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
+    <main className="pt-safe pb-safe mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
       <div className="mb-8 text-center">
         <Image src="/brand/logo-cor.png" alt="Nova Berith — Comunidade Católica: sorriso de Deus para o mundo e esperança para os que sofrem" width={900} height={544} priority className="mx-auto h-auto w-full max-w-72" />
         <p className="mt-3 text-sm text-tinta/70">Ministério de Comunicação — acesso da equipe</p>

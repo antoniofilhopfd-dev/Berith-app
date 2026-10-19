@@ -47,7 +47,7 @@ export function Pwa() {
   const ocultar = () => { try { localStorage.setItem(CHAVE_OCULTO, "1"); } catch { /* sem armazenamento */ } window.dispatchEvent(new Event("nb-oculto")); };
   const mostrarInstalar = !instalado && !oculto && (instalar !== null || ios);
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 mx-auto flex max-w-3xl flex-col gap-1 p-2" aria-live="polite">
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 mx-auto flex max-w-3xl flex-col gap-1 p-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]" aria-live="polite">
       {offline && <p role="status" className="pointer-events-auto rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">Você está sem conexão. Nada será salvo até a internet voltar.</p>}
       {espera && (
         <div role="status" className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg bg-verde px-3 py-2 text-sm text-white">
@@ -57,7 +57,7 @@ export function Pwa() {
       )}
       {mostrarInstalar && (
         <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm shadow ring-1 ring-borda">
-          {instalar ? <span>Instale o app Nova Berith no seu celular.</span> : <span>Para instalar: toque em Compartilhar e em “Adicionar à Tela de Início”.</span>}
+          {instalar ? <span>Instale o Berith: abre em tela cheia, como um aplicativo.</span> : <span>Para instalar: toque em Compartilhar e em “Adicionar à Tela de Início”.</span>}
           <span className="flex gap-1">
             {instalar && <button className="min-h-11 rounded-md bg-verde px-3 text-white" onClick={async () => { await instalar.prompt(); setInstalar(null); }}>Instalar app</button>}
             <button className="min-h-11 rounded-md px-2 text-verde" onClick={ocultar}>Agora não</button>
