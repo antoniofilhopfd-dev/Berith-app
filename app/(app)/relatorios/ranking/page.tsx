@@ -1,3 +1,4 @@
+import { contaPreferida } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
@@ -20,8 +21,8 @@ export default async function Ranking({ searchParams }: { searchParams: Promise<
   await exigir(user.id, "relatorios", "ver");
   const perms = await permissoesDe(user.id);
   const sp = await searchParams;
-  const d = await gerarRanking(user.id, sp);
-  const cta = d.contas.length > 1 && d.contaId ? `&conta=${d.contaId}` : "";
+  const d = await gerarRanking(user.id, { ...sp, conta: sp.conta ?? (await contaPreferida()) });
+  const cta = "";
   return (
     <div className="space-y-5">
       <header className="rounded-2xl border border-borda bg-cartao p-5">

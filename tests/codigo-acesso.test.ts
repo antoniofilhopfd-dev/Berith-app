@@ -94,3 +94,10 @@ describe("forma de entrada", () => {
     await definirModoLogin(e.admin, "ambos");
   });
 });
+
+describe("conta do Instagram preferida (seletor do topo)", () => {
+  it("fora de uma requisição não há preferência (os serviços caem na conta principal)", async () => {
+    const { contaPreferida } = await import("@/lib/auth/conta");
+    expect(await contaPreferida()).toBeUndefined();
+  });
+});

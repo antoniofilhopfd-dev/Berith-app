@@ -11,6 +11,9 @@ import { itensVisiveis } from "@/lib/nav";
 import { BottomNav, SidebarNav } from "@/components/nav";
 import { contagensMenu } from "@/lib/services/painel";
 import { garantirAgendador } from "@/lib/services/agendador";
+import { contasInstagram } from "@/lib/integracoes/contas";
+import { contaPreferida } from "@/lib/auth/conta";
+import { SeletorConta } from "@/components/seletor-conta";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +24,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [notif, perms, perfis] = await Promise.all([naoLidas(user.id), permissoesDe(user.id), perfisDe(user.id)]);
   const itens = itensVisiveis(perms);
   const badges = await contagensMenu(user.id, perms);
+  const contasIg = await contasInstagram();
+  const preferida = await contaPreferida();
+  const contaAtual = (contasIg.find((c) => c.igId === preferida) ?? contasIg.find((c) => c.principal) ?? contasIg[0])?.igId ?? "";
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
       <a href="#conteudo" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2">Pular para o conteúdo</a>
@@ -45,6 +51,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <form action={logoutAction}><button className="min-h-10 rounded-lg px-3 text-sm hover:bg-white/10">Sair</button></form>
           </div>
         </header>
+        {contasIg.length > 0 && perms.has("relatorios:ver") && (
+          <div className="no-print mx-auto flex w-full max-w-6xl justify-end px-4 pt-4 lg:px-8"><SeletorConta contas={contasIg} atual={contaAtual} /></div>
+        )}
         <main id="conteudo" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 lg:px-8">{children}</main>
       </div>
       <BottomNav itens={itens} badges={badges} />
