@@ -18,7 +18,7 @@ export function PageHeader({ titulo, sub, children }: { titulo: string; sub?: st
   return (
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="font-titulo text-2xl text-verde-escuro">{titulo}</h1>
+        <h1 className="font-titulo text-xl text-verde-escuro md:text-2xl">{titulo}</h1>
         {sub && <p className="mt-0.5 text-sm text-tinta/70">{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}

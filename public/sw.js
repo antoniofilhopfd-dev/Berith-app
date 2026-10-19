@@ -2,7 +2,7 @@
  * - Push: exibe notificações e abre a página correta ao tocar.
  * - Cache: SOMENTE ícones/logo e a página offline. Nunca páginas privadas, /api, financeiro ou dados pessoais.
  * - Atualização controlada: a nova versão espera até o usuário aceitar (mensagem SKIP_WAITING). */
-const VERSAO = "nb-v1";
+const VERSAO = "nb-v2";
 const ESTATICOS = ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png", "/brand/logo-cor.png"];
 
 self.addEventListener("install", (e) => {
