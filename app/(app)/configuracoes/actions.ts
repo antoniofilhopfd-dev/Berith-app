@@ -8,7 +8,7 @@ import { senhaNovaSchema } from "@/lib/validation/auth";
 import { atualizarPerfil } from "@/lib/services/equipe";
 import { encerrarOutrasSessoes, encerrarSessao, trocarSenha } from "@/lib/services/senha";
 import { salvarConfig } from "@/lib/services/configuracoes";
-import { desconectar, iniciarConexao } from "@/lib/integracoes/contas";
+import { desconectar, iniciarConexao, removerContaInstagram } from "@/lib/integracoes/contas";
 import { REDES, REDES_ATIVAS, type Rede } from "@/lib/editorial";
 import { isTime } from "@/lib/time";
 import { assertCan } from "@/lib/permissions";
@@ -53,3 +53,8 @@ export const executarAgendadorAction = guarded(async (u) => {
   const r = await executarAgendador("manual", await baseUrl());
   return { ok: "ocupado" in r && r.ocupado ? "Já havia uma rodada em andamento. Tente de novo em instantes." : "Agendador executado agora." };
 }, ["/configuracoes/geral"]);
+
+export const removerContaAction = guarded(async (u, f) => {
+  await removerContaInstagram(u.id, z.string().regex(/^\d{1,40}$/, "Conta inválida.").parse(f.get("igId")));
+  return { ok: "Conta removida e dados dela apagados." };
+}, ["/configuracoes/redes", "/relatorios"]);

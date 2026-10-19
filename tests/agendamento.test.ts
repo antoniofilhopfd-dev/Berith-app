@@ -279,7 +279,7 @@ describe("métricas e lembretes", () => {
   });
   it("atualização manual ignora a janela de 6 h, exige permissão e mostra o erro da rede", async () => {
     await conectar("instagram");
-    expect(await A.sincronizarContaAgora(e.coord, "instagram", EM(14))).toEqual({ posts: 2, erro: undefined });
+    expect(await A.sincronizarContaAgora(e.coord, "instagram", EM(14))).toEqual({ posts: 2, meses: 0, contas: 1, erro: undefined });
     expect((await A.sincronizarContaAgora(e.coord, "instagram", EM(15))).posts).toBe(2); // de novo, sem esperar 6 h
     await expect(A.sincronizarContaAgora(e.semPerfil, "instagram", EM(15))).rejects.toBeInstanceOf(ForbiddenError);
     definirProvedores({ instagram: { ...falso("instagram"), listarPostsConta: async () => { throw new Error("HTTP 400: (#10) Permissão ausente"); } } });
@@ -289,6 +289,28 @@ describe("métricas e lembretes", () => {
     definirProvedores({ instagram: falso("instagram"), facebook: falso("facebook") });
     await execute("DELETE FROM redes_contas");
     expect((await A.sincronizarContaAgora(e.coord, "instagram", EM(18))).erro).toMatch(/não conectada/i);
+  });
+  it("várias contas: cada uma tem seus posts e totais mensais; erro de uma não derruba as outras", async () => {
+    await conectar("instagram");
+    await execute("DELETE FROM posts_externos"); await execute("DELETE FROM instagram_mensal");
+    await execute("INSERT INTO instagram_contas (ig_id, usuario, page_id, token_enc, status, conectada_em) VALUES ('ext-2','@segunda','pg2',?, 'conectada', NOW())", [cifrar("PAGE-TOKEN-2")]);
+    const vistas: string[] = [];
+    const prov = (nome: string): Provedor => ({
+      ...falso("instagram"),
+      metricasMes: async (c, ano, mes) => { vistas.push(`${c.contaExternaId}:${c.token}:${ano}-${mes}`); if (c.contaExternaId === "ext-2" && mes === 9) throw new Error("(#10) sem permissão"); return { alcance: nome === "x" ? 1 : 100, interacoes: 7 }; },
+      listarPostsConta: async (c) => [{ idExterno: `post-${c.contaExternaId}`, tipo: "IMAGE", legenda: "x", url: null, publicadoEm: new Date("2026-10-18T15:00:00Z"), curtidas: 3 }],
+      metricasConta: async (c) => ({ seguidores: c.contaExternaId === "ext-2" ? 50 : 1234 }),
+    });
+    definirProvedores({ instagram: prov("a") });
+    const r = await A.sincronizarContaAgora(e.coord, "instagram", EM(30), 3);
+    expect(r).toMatchObject({ contas: 2, posts: 2 });
+    expect(vistas).toContain("ext-instagram:tok-instagram:2026-10"); expect(vistas).toContain("ext-2:PAGE-TOKEN-2:2026-10"); // cada conta com o próprio token
+    expect(r.meses).toBe(5); // 3 + 3 meses, menos setembro da conta 2
+    expect(r.erro).toMatch(/@segunda|sem permissão/);
+    expect((await query<any>("SELECT conta_id, id_externo FROM posts_externos ORDER BY conta_id")).map((x: any) => [x.conta_id, x.id_externo])).toEqual([["ext-2", "post-ext-2"], ["ext-instagram", "post-ext-instagram"]]);
+    expect((await query<any>("SELECT conta_id, COUNT(*) n FROM instagram_mensal GROUP BY conta_id ORDER BY conta_id")).map((x: any) => [x.conta_id, Number(x.n)])).toEqual([["ext-2", 2], ["ext-instagram", 3]]);
+    expect((await query<any>("SELECT conta_id, seguidores FROM metricas_conta WHERE rede='instagram' ORDER BY conta_id")).map((x: any) => [x.conta_id, x.seguidores])).toEqual([["ext-2", 50], ["ext-instagram", 1234]]);
+    await execute("DELETE FROM instagram_contas"); definirProvedores({ instagram: falso("instagram") });
   });
   it("não coleta de publicação assistida", async () => {
     await execute("DELETE FROM metricas_publicacao");

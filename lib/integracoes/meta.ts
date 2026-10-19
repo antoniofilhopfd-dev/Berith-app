@@ -1,6 +1,7 @@
 import type { Formato, Rede } from "@/lib/editorial";
+import { localToUtc } from "@/lib/time";
 import { chamar, erroPlataforma, num, obj, str, urlDaPlataformaValida } from "./http";
-import type { ConteudoPublicar, ContaAtiva, MetricasColetadas, MetricasConta, PostExterno, Provedor, ResultadoPublicacao, TokensOAuth, PerfilConta } from "./tipos";
+import type { ConteudoPublicar, ContaAtiva, MetricasColetadas, MetricasConta, MetricasMes, PostExterno, Provedor, ResultadoPublicacao, TokensOAuth, PerfilConta } from "./tipos";
 
 /** Meta (Instagram e Facebook) — Graph API oficial. Versão e bases configuráveis por ambiente. */
 const versao = () => process.env.META_GRAPH_VERSION || "v23.0";
@@ -24,7 +25,7 @@ const tokenInvalido = (status: number, json: unknown) => {
   return status === 401 || e.code === 190 || e.type === "OAuthException" && [102, 190].includes(Number(e.code));
 };
 
-async function trocarCodigoMeta(code: string, redirectUri: string, comInstagram = false): Promise<{ tokens: TokensOAuth; pagina: { id: string; nome: string; token: string; igId: string | null } }> {
+async function trocarCodigoMeta(code: string, redirectUri: string, comInstagram = false): Promise<{ tokens: TokensOAuth; pagina: { id: string; nome: string; token: string; igId: string | null }; outras: { id: string; token: string; igId: string; usuario: string }[] }> {
   const r1 = await chamar(`${graph()}/oauth/access_token?${form({ client_id: appId(), client_secret: appSecret(), redirect_uri: redirectUri, code })}`);
   const curto = str(obj(r1.json).access_token);
   if (r1.status !== 200 || !curto) throw new Error(erroPlataforma(r1.json, r1.texto, r1.status));
@@ -39,7 +40,11 @@ async function trocarCodigoMeta(code: string, redirectUri: string, comInstagram 
     : comInstagram ? paginas.find((p) => str(obj(p.instagram_business_account).id)) ?? paginas[0] : paginas[0];
   if (!alvo) throw new Error("Nenhuma Página do Facebook encontrada para esta conta (ou a Página indicada em META_PAGE_ID não foi autorizada).");
   const ig = obj(alvo.instagram_business_account);
+  // Demais Páginas do mesmo login que têm Instagram profissional: viram contas só de leitura (métricas).
+  const outras = paginas.filter((p) => p !== alvo && str(obj(p.instagram_business_account).id) && str(p.access_token))
+    .map((p) => ({ id: str(p.id)!, token: str(p.access_token)!, igId: str(obj(p.instagram_business_account).id)!, usuario: str(obj(p.instagram_business_account).username) ?? str(p.name) ?? "Instagram" }));
   return {
+    outras,
     tokens: { accessToken: longo, expiraEm: expira ? new Date(Date.now() + expira * 1000) : null },
     pagina: { id: str(alvo.id)!, nome: str(alvo.name) ?? "Página", token: str(alvo.access_token) ?? longo, igId: str(ig.id) },
   };
@@ -128,13 +133,42 @@ async function insightsIg(conta: ContaAtiva, idExterno: string, _formato: Format
   return algum ? m : null;
 }
 
+const LIMITE_INSIGHTS_POSTS = 40;
+const miniaturaHttps = (u: string | null) => (u && /^https:\/\/[^\s"'<>]+$/.test(u) ? u.slice(0, 1000) : null);
+
+const METRICAS_MES: [keyof MetricasMes, string][] = [
+  ["alcance", "reach"], ["visualizacoes", "views"], ["visitasPerfil", "profile_views"], ["interacoes", "total_interactions"],
+  ["curtidas", "likes"], ["comentarios", "comments"], ["compartilhamentos", "shares"], ["salvamentos", "saves"],
+];
+
+/** Totais da janela [since, until] (epoch s). Pede em lote; se a Meta recusar, pede uma a uma e segue com as que existirem. */
+async function totaisJanela(conta: ContaAtiva, since: number, until: number): Promise<{ valores: Partial<Record<keyof MetricasMes, number>>; erro: string | null }> {
+  const valores: Partial<Record<keyof MetricasMes, number>> = {};
+  const ler = (json: unknown) => {
+    for (const d of (Array.isArray(obj(json).data) ? (obj(json).data as unknown[]) : []).map(obj)) {
+      const campo = METRICAS_MES.find(([, nome]) => nome === d.name)?.[0];
+      const v = num(obj(d.total_value).value);
+      if (campo && v != null) valores[campo] = v;
+    }
+  };
+  const base = { metric_type: "total_value", period: "day", since: String(since), until: String(until) };
+  const lote = await get(`/${conta.contaExternaId}/insights`, conta.token, { ...base, metric: METRICAS_MES.map(([, n]) => n).join(",") });
+  if (lote.status === 200) { ler(lote.json); return { valores, erro: null }; }
+  let ultimoErro = erroPlataforma(lote.json, lote.texto, lote.status);
+  for (const [, nome] of METRICAS_MES) {
+    const r = await get(`/${conta.contaExternaId}/insights`, conta.token, { ...base, metric: nome });
+    if (r.status === 200) ler(r.json); else ultimoErro = erroPlataforma(r.json, r.texto, r.status);
+  }
+  return { valores, erro: Object.keys(valores).length ? null : ultimoErro };
+}
+
 export const instagram: Provedor = {
   rede: "instagram", ...base("instagram", ESCOPOS_IG),
   async trocarCodigo({ code, redirectUri }) {
-    const { tokens, pagina } = await trocarCodigoMeta(code, redirectUri, true);
+    const { tokens, pagina, outras } = await trocarCodigoMeta(code, redirectUri, true);
     if (!pagina.igId) throw new Error("A Página do Facebook encontrada não tem uma conta profissional do Instagram vinculada.");
     const u = await get(`/${pagina.igId}`, pagina.token, { fields: "username,name" });
-    const perfil: PerfilConta = { contaExternaId: pagina.igId, nome: str(obj(u.json).username) ? `@${str(obj(u.json).username)}` : "Instagram", meta: { pageId: pagina.id } };
+    const perfil: PerfilConta = { contaExternaId: pagina.igId, nome: str(obj(u.json).username) ? `@${str(obj(u.json).username)}` : "Instagram", meta: { pageId: pagina.id }, extras: outras.map((o) => ({ contaExternaId: o.igId, nome: o.usuario.startsWith("@") ? o.usuario : `@${o.usuario}`, token: o.token, meta: { pageId: o.id } })) };
     return { tokens: { ...tokens, accessToken: pagina.token, expiraEm: null }, perfil };
   },
   async renovar() { throw new Error("Tokens de Página do Meta não são renovados: reconecte a conta se o acesso for revogado."); },
@@ -153,6 +187,27 @@ export const instagram: Provedor = {
     }
     return m;
   },
+  async metricasMes(conta, ano, mes, agora = new Date()) {
+    if (!conta.contaExternaId) return null;
+    const mm = (n: number) => String(n).padStart(2, "0");
+    const ini = localToUtc(`${ano}-${mm(mes)}-01`, "00:00");
+    const prox = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${mm(mes + 1)}-01`;
+    const fimMes = localToUtc(prox, "00:00");
+    const fim = new Date(Math.min(fimMes.getTime(), agora.getTime()));
+    if (fim <= ini) return null; // mês ainda não começou
+    const soma: MetricasMes = {};
+    let inicio = ini.getTime(), ultimoErro: string | null = null, algum = false;
+    // A Meta limita cada consulta a 30 dias: meses de 31 dias vão em duas janelas (o alcance somado de janelas é aproximado).
+    while (inicio < fim.getTime()) {
+      const fimJanela = Math.min(inicio + 30 * 86_400_000, fim.getTime());
+      const r = await totaisJanela(conta, Math.floor(inicio / 1000), Math.floor(fimJanela / 1000));
+      if (r.erro) ultimoErro = r.erro;
+      for (const [k, v] of Object.entries(r.valores) as [keyof MetricasMes, number][]) { soma[k] = (soma[k] ?? 0) + v; algum = true; }
+      inicio = fimJanela;
+    }
+    if (!algum) throw new Error(ultimoErro ?? "A Meta não devolveu métricas para o período.");
+    return soma;
+  },
   async listarPostsConta(conta, desde, limite) {
     if (!conta.contaExternaId) return [];
     const out: PostExterno[] = [];
@@ -160,7 +215,7 @@ export const instagram: Provedor = {
     let primeira = true;
     while (out.length < limite) {
       const r: Awaited<ReturnType<typeof get>> = primeira
-        ? await get(`/${conta.contaExternaId}/media`, conta.token, { fields: "id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count", limit: String(Math.min(50, limite)) })
+        ? await get(`/${conta.contaExternaId}/media`, conta.token, { fields: "id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count,thumbnail_url,media_url", limit: String(Math.min(50, limite)) })
         : await chamar(url!);
       primeira = false;
       if (r.status !== 200) throw new Error(erroPlataforma(r.json, r.texto, r.status));
@@ -175,9 +230,10 @@ export const instagram: Provedor = {
         const post: PostExterno = {
           idExterno: id, legenda: str(p.caption), url: str(p.permalink), publicadoEm: quando,
           tipo: str(p.media_product_type) === "REELS" ? "REELS" : str(p.media_type),
+          miniatura: miniaturaHttps(str(p.thumbnail_url) ?? (["IMAGE", "CAROUSEL_ALBUM"].includes(str(p.media_type) ?? "") ? str(p.media_url) : null)),
           curtidas: num(p.like_count), comentarios: num(p.comments_count),
         };
-        const ins = await insightsIg(conta, id, "post");
+        const ins = out.length < LIMITE_INSIGHTS_POSTS ? await insightsIg(conta, id, "post") : null; // alcance/salvamentos só dos posts mais recentes (limita as chamadas)
         if (ins) { post.alcance = ins.alcance; post.compartilhamentos = ins.compartilhamentos; post.salvamentos = ins.salvamentos; post.visualizacoes = ins.visualizacoes; post.curtidas = post.curtidas ?? ins.curtidas; post.comentarios = post.comentarios ?? ins.comentarios; }
         out.push(post);
         if (out.length >= limite) break;

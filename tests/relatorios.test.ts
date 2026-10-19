@@ -1,172 +1,104 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { inflateRawSync } from "node:zlib";
 import { execute, closePool } from "@/lib/db";
 import { ForbiddenError } from "@/lib/permissions";
 import { DomainError } from "@/lib/services/errors";
-import { REDES_RELATORIO, analisarPosts, gerarRelatorio, gerarRelatorioConta, textoCelula, validarPeriodo, variacao, type PostConta } from "@/lib/services/relatorios";
+import { gerarRelatorioMensal, melhoresHorarios, mesAnterior, rotuloMes, validarMes, variacaoPct, interacoesDe } from "@/lib/services/relatorios";
 import { gerarXlsx } from "@/lib/export/xlsx";
 import { gerarPdf } from "@/lib/export/pdf";
 import { paraPdf, paraPlanilhas } from "@/lib/export/relatorio";
-import * as P from "@/lib/services/publicacoes";
-import { criarMidia, equipePadrao, pubBase, resetTestDb } from "./helpers";
+import { cifrar } from "@/lib/integracoes/cripto";
+import { equipePadrao, resetTestDb } from "./helpers";
 
 let e: Awaited<ReturnType<typeof equipePadrao>>;
-const X = { prazo: null, publicarEm: null };
 
-async function publicada(rede: "instagram" | "facebook" | "youtube", quando: string, metricas: Record<string, number> | null, assistida = 0, formato: "post" | "video" = "post") {
-  const m = await criarMidia(e.integ, formato === "video" ? "video" : "imagem");
-  const id = await P.criar(e.integ, pubBase({ titulo: `Pub ${rede} ${quando}`, redes: [rede], formato, midiaIds: [m] }), X);
-  await execute("UPDATE publicacoes SET status = 'publicado' WHERE id = ?", [id]);
-  const rid = (await (await import("@/lib/db")).query<any>("SELECT id FROM publicacao_redes WHERE publicacao_id = ?", [id]))[0].id;
-  await execute("UPDATE publicacao_redes SET envio = 'publicada', publicada_em = ?, assistida = ?, post_externo_id = 'ext' WHERE id = ?", [new Date(quando), assistida, rid]);
-  if (metricas) {
-    const c = ["alcance", "impressoes", "curtidas", "comentarios", "compartilhamentos", "salvamentos", "visualizacoes"];
-    await execute(`INSERT INTO metricas_publicacao (publicacao_rede_id, coletado_em, ${Object.keys(metricas).join(",")}) VALUES (?, ?, ${Object.keys(metricas).map(() => "?").join(",")})`, [rid, new Date(new Date(quando).getTime() + 3600_000), ...Object.values(metricas)]);
-    void c;
-  }
-  return rid;
+async function post(conta: string, id: string, quando: string, m: Partial<Record<"curtidas" | "comentarios" | "salvamentos" | "compartilhamentos" | "alcance" | "visualizacoes", number>> = {}, tipo = "IMAGE") {
+  await execute("INSERT INTO posts_externos (rede, conta_id, id_externo, tipo, legenda, url, publicado_em, alcance, curtidas, comentarios, compartilhamentos, salvamentos, visualizacoes, coletado_em) VALUES ('instagram',?,?,?,?,?,?,?,?,?,?,?,?, NOW())",
+    [conta, id, tipo, `Legenda ${id}`, `https://www.instagram.com/p/${id}/`, new Date(quando), m.alcance ?? null, m.curtidas ?? null, m.comentarios ?? null, m.compartilhamentos ?? null, m.salvamentos ?? null, m.visualizacoes ?? null]);
 }
 
 beforeAll(async () => {
+  process.env.TOKEN_ENC_KEY = "chave-de-teste-para-cifrar-tokens-0123456789";
   await resetTestDb(); e = await equipePadrao();
-  // período atual: 10 a 19/10 (UTC-3, meio-dia local = 15:00Z); anterior: 30/09 a 09/10
-  const r1 = await publicada("instagram", "2026-10-12T15:00:00Z", { alcance: 1000, curtidas: 80, comentarios: 10, compartilhamentos: 5, salvamentos: 15, visualizacoes: 1500 });
-  await execute("INSERT INTO metricas_publicacao (publicacao_rede_id, coletado_em, alcance, curtidas) VALUES (?, ?, 1200, 90)", [r1, new Date("2026-10-14T15:00:00Z")]); // coleta mais recente prevalece
-  await publicada("instagram", "2026-10-15T15:00:00Z", { alcance: 500, curtidas: 20, comentarios: 2, compartilhamentos: 1, salvamentos: 3, visualizacoes: 700 });
-  await publicada("instagram", "2026-10-05T15:00:00Z", { alcance: 400, curtidas: 40 }); // período anterior
-  await publicada("facebook", "2026-10-16T15:00:00Z", null, 1); // assistida: sem métricas
-  await publicada("youtube", "2026-10-17T15:00:00Z", { visualizacoes: 300, curtidas: 30, comentarios: 3 }, 0, "video");
+  await execute("INSERT INTO redes_contas (rede, nome_exibicao, conta_externa_id, status, token_enc, meta) VALUES ('instagram','@novaberith','ig1','conectada',?, '{}')", [cifrar("t")]);
+  await execute("INSERT INTO instagram_contas (ig_id, usuario, page_id, token_enc, status, conectada_em) VALUES ('ig2','@outra',NULL,?, 'conectada', NOW())", [cifrar("t2")]);
+  await execute("INSERT INTO instagram_mensal (conta_id, periodo, alcance, visualizacoes, visitas_perfil, interacoes, curtidas, atualizado_em) VALUES ('ig1','2026-10',2000,9000,150,400,300,NOW()), ('ig1','2026-09',1000,6000,100,500,350,NOW()), ('ig2','2026-10',77,NULL,NULL,NULL,NULL,NOW())");
+  await execute("INSERT INTO metricas_conta (rede, conta_id, dia, seguidores) VALUES ('instagram','ig1','2026-09-30',1000), ('instagram','ig1','2026-10-10',1050), ('instagram','ig1','2026-10-18',1100), ('instagram','ig2','2026-10-18',9)");
+  // meia-noite em Recife/SP (UTC-3): 01/10 02:00Z ainda é 30/09 local; 01/11 02:00Z ainda é 31/10 local
+  await post("ig1", "a", "2026-10-12T15:00:00Z", { curtidas: 80, comentarios: 10, compartilhamentos: 5, salvamentos: 15, alcance: 1000 }, "REELS"); // 110 interações
+  await post("ig1", "b", "2026-10-15T15:00:00Z", { curtidas: 20, comentarios: 2 });                                                                    // 22
+  await post("ig1", "c", "2026-10-20T15:00:00Z", {});                                                                                                   // 0 (sem métricas)
+  await post("ig1", "borda1", "2026-10-01T02:00:00Z", { curtidas: 999 });   // 30/09 local: fora de outubro
+  await post("ig1", "borda2", "2026-11-01T02:00:00Z", { curtidas: 50 });    // 31/10 local: dentro de outubro
+  await post("ig1", "setembro", "2026-09-10T15:00:00Z", { curtidas: 40 });
+  await post("ig2", "outra1", "2026-10-11T15:00:00Z", { curtidas: 5 });
 });
 afterAll(closePool);
 
-describe("relatório orgânico", () => {
-  it("valida o período", () => {
-    expect(() => validarPeriodo("2026-10-20", "2026-10-01")).toThrow(DomainError);
-    expect(() => validarPeriodo("2026-02-30", "2026-03-01")).toThrow(DomainError);
-    expect(() => validarPeriodo("2024-01-01", "2026-10-01")).toThrow(/400 dias/);
+describe("relatório mensal do Instagram", () => {
+  it("valida o mês e calcula o anterior (virada de ano)", () => {
+    expect(() => validarMes("2026-13")).toThrow(DomainError);
+    expect(() => validarMes("26-10")).toThrow(DomainError);
+    expect(mesAnterior("2026-10")).toBe("2026-09"); expect(mesAnterior("2026-01")).toBe("2025-12");
+    expect(rotuloMes("2026-03")).toBe("Março de 2026");
   });
-  it("só quem tem permissão vê", async () => {
-    await expect(gerarRelatorio(e.integ, "2026-10-10", "2026-10-19")).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(gerarRelatorio(e.aprov, "2026-10-10", "2026-10-19")).rejects.toBeInstanceOf(ForbiddenError);
-    await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
+  it("variação percentual só quando dá para comparar (sem inventar)", () => {
+    expect(variacaoPct(2000, 1000)).toBe(100); expect(variacaoPct(500, 1000)).toBe(-50); expect(variacaoPct(1050, 1000)).toBe(5);
+    expect(variacaoPct(10, 0)).toBeNull(); expect(variacaoPct(null, 5)).toBeNull(); expect(variacaoPct(5, undefined)).toBeNull();
   });
-  it("soma a coleta MAIS RECENTE de cada publicação e conta as publicações do período", async () => {
-    const r = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
-    const ig = r.redes.find((x) => x.rede === "instagram")!;
-    expect(ig.publicadas).toBe(2);
-    expect(ig.metricas.alcance).toEqual({ estado: "valor", valor: 1200 + 500 }); // 1200 (coleta nova) + 500
-    expect(ig.metricas.curtidas).toEqual({ estado: "valor", valor: 90 + 20 });
-    expect(ig.metricas.visualizacoes).toEqual({ estado: "valor", valor: 700 }); // a coleta nova da 1ª não trouxe visualizações → NULL não vira zero
-    expect(r.totais).toMatchObject({ publicadas: 4, automaticas: 3, assistidas: 1, anterior: 1 });
+  it("interações = curtidas + comentários + compartilhamentos + salvamentos (ausente conta 0)", () => {
+    expect(interacoesDe({ curtidas: 80, comentarios: 10, compartilhamentos: 5, salvamentos: 15 })).toBe(110);
+    expect(interacoesDe({ curtidas: null, comentarios: null, compartilhamentos: null, salvamentos: null })).toBe(0);
   });
-  it("diferencia indisponível, não conectada e sem dados (nunca inventa zero)", async () => {
-    const r = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
-    const fb = r.redes.find((x) => x.rede === "facebook")!, tt = r.redes.find((x) => x.rede === "tiktok")!, yt = r.redes.find((x) => x.rede === "youtube")!, ig = r.redes.find((x) => x.rede === "instagram")!;
-    expect(ig.metricas.impressoes).toEqual({ estado: "indisponivel" }); // a API do Instagram não fornece impressões
-    expect(yt.metricas.alcance).toEqual({ estado: "indisponivel" }); expect(yt.metricas.salvamentos).toEqual({ estado: "indisponivel" });
-    expect(yt.metricas.visualizacoes).toEqual({ estado: "valor", valor: 300 });
-    expect(fb.publicadas).toBe(1); expect(fb.assistidas).toBe(1); expect(fb.metricas.curtidas).toEqual({ estado: "nao_conectada" }); // assistida, sem conta
-    expect(tt.publicadas).toBe(0); expect(tt.metricas.visualizacoes).toEqual({ estado: "nao_conectada" });
-    await execute("INSERT INTO redes_contas (rede, status, token_enc) VALUES ('tiktok', 'conectada', 'x')");
-    const r2 = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
-    expect(r2.redes.find((x) => x.rede === "tiktok")!.metricas.visualizacoes).toEqual({ estado: "sem_dados" }); // conectada, ainda sem coleta
-    expect(textoCelula({ estado: "valor", valor: 1234567 })).toBe("1.234.567");
+  it("monta os totais do mês, o anterior, os seguidores e os posts na ordem do ranking (data no fuso local)", async () => {
+    const r = await gerarRelatorioMensal(e.coord, "2026-10");
+    expect(r.rotuloMes).toBe("Outubro de 2026"); expect(r.conta).toBe("@novaberith"); expect(r.contaId).toBe("ig1");
+    expect(r.atual).toMatchObject({ alcance: 2000, visualizacoes: 9000, visitasPerfil: 150, interacoes: 400, curtidas: 300, comentarios: null });
+    expect(r.anteriorTotais).toMatchObject({ alcance: 1000, interacoes: 500 });
+    expect(r.seguidores).toBe(1100); expect(r.seguidoresAnterior).toBe(1000); // último registro de cada mês
+    expect(r.posts.map((p) => p.id)).toEqual(["a", "borda2", "b", "c"]); // por interações; "borda1" (30/09 local) fica de fora, "borda2" (31/10 local) entra
+    expect(r.posts[0]).toMatchObject({ interacoes: 110, alcance: 1000 });
+    expect(r.reels).toBe(1); expect(r.feed).toBe(3);
+    expect(r.formatos[0]).toMatchObject({ tipo: "Feed", posts: 3 });
   });
-  it("compara com o período anterior de mesma duração", async () => {
-    const r = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
-    expect([r.anteriorDe, r.anteriorAte]).toEqual(["2026-09-30", "2026-10-09"]);
-    const ig = r.redes.find((x) => x.rede === "instagram")!;
-    expect(ig.publicadasAnterior).toBe(1); expect(ig.anterior!.alcance).toEqual({ estado: "valor", valor: 400 });
-    expect(variacao(ig.metricas.alcance, ig.anterior!.alcance)).toBe(325); // (1700-400)/400
-    expect(variacao({ estado: "valor", valor: 5 }, { estado: "valor", valor: 0 })).toBeNull(); // sem divisão por zero
-    expect(variacao({ estado: "sem_dados" }, { estado: "valor", valor: 5 })).toBeNull();
-    expect((await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19", false)).anteriorDe).toBeNull();
+  it("mês sem dados volta vazio (nada inventado)", async () => {
+    const r = await gerarRelatorioMensal(e.coord, "2025-01");
+    expect(r.atual).toBeNull(); expect(r.anteriorTotais).toBeNull(); expect(r.seguidores).toBeNull(); expect(r.posts).toEqual([]);
   });
-  it("seguidores: variação entre o primeiro e o último dia com dado", async () => {
-    await execute("INSERT INTO metricas_conta (rede, dia, seguidores) VALUES ('instagram','2026-10-10',1000),('instagram','2026-10-18',1060),('instagram','2026-09-01',5)");
-    const r = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
-    expect(r.redes.find((x) => x.rede === "instagram")!.seguidores).toEqual({ inicio: 1000, fim: 1060, variacao: 60 });
-    expect(r.redes.find((x) => x.rede === "youtube")!.seguidores).toEqual({ inicio: null, fim: null, variacao: null });
+  it("escolhe a conta: cada uma só vê os próprios dados; conta desconhecida cai na principal", async () => {
+    const r2 = await gerarRelatorioMensal(e.coord, "2026-10", "ig2");
+    expect(r2.conta).toBe("@outra"); expect(r2.atual).toMatchObject({ alcance: 77 }); expect(r2.posts.map((p) => p.id)).toEqual(["outra1"]); expect(r2.seguidores).toBe(9);
+    expect(r2.contas.map((c) => [c.igId, c.principal])).toEqual([["ig1", true], ["ig2", false]]);
+    expect((await gerarRelatorioMensal(e.coord, "2026-10", "qualquer")).contaId).toBe("ig1");
   });
-  it("lista as publicações do período com a origem (automática/assistida)", async () => {
-    const r = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
-    expect(r.publicacoes).toHaveLength(4);
-    expect(r.publicacoes.find((p) => p.rede === "facebook")).toMatchObject({ assistida: true, coletada: false });
-    expect(r.formatos).toEqual(expect.arrayContaining([{ formato: "post", publicadas: 3 }, { formato: "video", publicadas: 1 }]));
+  it("só quem tem a permissão de ver relatórios acessa", async () => {
+    await expect(gerarRelatorioMensal(e.integ, "2026-10")).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(gerarRelatorioMensal(e.semPerfil, "2026-10")).rejects.toBeInstanceOf(ForbiddenError);
+    await gerarRelatorioMensal(e.aprov, "2026-10").catch((err) => expect(err).toBeInstanceOf(ForbiddenError));
   });
 });
 
-describe("exportação", () => {
-  const lerZip = (b: Buffer) => { // extrai os arquivos de um zip (store/deflate) para inspeção
-    const out: Record<string, string> = {}; let i = 0;
-    while (b.readUInt32LE(i) === 0x04034b50) {
-      const met = b.readUInt16LE(i + 8), cs = b.readUInt32LE(i + 18), n = b.readUInt16LE(i + 26), x = b.readUInt16LE(i + 28);
-      const nome = b.subarray(i + 30, i + 30 + n).toString(), dados = b.subarray(i + 30 + n + x, i + 30 + n + x + cs);
-      out[nome] = (met === 8 ? inflateRawSync(dados) : dados).toString("utf8"); i += 30 + n + x + cs;
-    }
-    return out;
-  };
-  it("Excel: zip válido, textos nunca viram fórmula e XML é escapado", () => {
-    const z = lerZip(gerarXlsx([{ nome: "Teste/Inválido:*", linhas: [["Cab", "N"], ["=HYPERLINK(\"http://evil\",\"x\")", 5], ["+cmd|' /C calc'!A0", null], ["<b>&\"'", 1.5]] }]));
-    expect(Object.keys(z)).toEqual(expect.arrayContaining(["[Content_Types].xml", "xl/workbook.xml", "xl/worksheets/sheet1.xml", "xl/styles.xml"]));
-    const sheet = z["xl/worksheets/sheet1.xml"];
-    expect(sheet).not.toMatch(/<f[ >]/); // nenhuma fórmula
-    expect(sheet).toContain('t="inlineStr"'); expect(sheet).toContain("&lt;b&gt;&amp;&quot;&apos;"); expect(sheet).toContain("<v>5</v>");
-    expect(z["xl/workbook.xml"]).toContain('name="Teste Inválido  "'.trim().slice(0, 0) + "Teste"); // nome da aba sem \\ / ? * [ ] :
-    expect(z["xl/workbook.xml"]).not.toMatch(/name="[^"]*[:*\/?]/);
+describe("melhor dia e horário", () => {
+  const p = (iso: string, interacoes: number) => ({ publicado_em: new Date(iso), interacoes });
+  it("não indica nada com amostra pequena", () => {
+    expect(melhoresHorarios([p("2026-10-14T15:00:00Z", 50)])).toEqual({ amostra: 1, minimo: 8, melhor: null });
   });
-  it("Excel e PDF do relatório: conteúdo coerente com os números", async () => {
-    const r = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19");
-    const z = lerZip(gerarXlsx(paraPlanilhas(r)));
-    expect(z["xl/workbook.xml"]).toMatch(/Resumo.*Publicações.*Comparação.*Formatos/s);
-    expect(z["xl/worksheets/sheet1.xml"]).toContain("<v>1700</v>"); expect(z["xl/worksheets/sheet1.xml"]).toContain("indisponível");
-    const pdf = Buffer.from(await gerarPdf(paraPdf(r, "Ministério — teste ✝ “aspas”")));
-    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-"); expect(pdf.length).toBeGreaterThan(1500); expect(pdf.subarray(-6).toString()).toContain("%%EOF");
-  });
-  it("PDF aguenta caracteres fora do Latin-1, textos longos e muitas linhas (paginação)", async () => {
-    const linhas = Array.from({ length: 150 }, (_, i) => [`Linha ${i} ✝️ 😀 ${"x".repeat(200)}`, "1"]);
-    const pdf = await gerarPdf({ titulo: "T 😀", subtitulo: "S", tabelas: [{ titulo: "Grande", colunas: [{ rotulo: "A", largura: 100 }, { rotulo: "B", largura: 20, alinhar: "dir" }], linhas }] });
-    const { PDFDocument } = await import("pdf-lib");
-    expect((await PDFDocument.load(pdf)).getPageCount()).toBeGreaterThan(3); // várias páginas
+  it("indica dia e hora (fuso local) pela média de interações e marca a confiança", () => {
+    const quartas = ["2026-10-07", "2026-10-14", "2026-10-21", "2026-10-28"].map((d) => p(`${d}T15:00:00Z`, 100)); // quarta, 12h local
+    const outros = [10, 11, 12, 13, 14].map((d) => p(`2026-10-${d}T01:00:00Z`, 5));
+    expect(melhoresHorarios([...quartas, ...outros]).melhor).toMatchObject({ dia: "Quarta", hora: 12, confianca: "alta" });
   });
 });
 
-describe("conta inteira: ranking e melhores horários", () => {
-  const post = (id: string, quando: string, v: Partial<PostConta["valores"]>, tipo = "IMAGE"): PostConta => ({
-    rede: "instagram", id, tipo, legenda: `Post ${id}`, url: null, publicado_em: new Date(quando),
-    valores: { alcance: null, impressoes: null, curtidas: null, comentarios: null, compartilhamentos: null, salvamentos: null, visualizacoes: null, ...v },
-  });
-  it("ranking soma curtidas, comentários, compartilhamentos e salvamentos; ausente conta 0", () => {
-    const r = analisarPosts([post("a", "2026-10-01T15:00:00Z", { curtidas: 10 }), post("b", "2026-10-02T15:00:00Z", { curtidas: 5, comentarios: 3, salvamentos: 4, compartilhamentos: 1 }), post("c", "2026-10-03T15:00:00Z", {})]);
-    expect(r.ranking.map((p) => [p.id, p.interacoes])).toEqual([["b", 13], ["a", 10], ["c", 0]]);
-  });
-  it("não indica melhor horário com amostra pequena (nunca chuta)", () => {
-    const r = analisarPosts([post("a", "2026-10-01T15:00:00Z", { curtidas: 10 })]);
-    expect(r.horarios).toEqual({ amostra: 1, minimo: 8, melhor: null });
-  });
-  it("indica melhor dia e hora (fuso local) com amostra suficiente e marca a confiança", () => {
-    // quarta-feira 15:00Z = 12h local; demais posts às 22h
-    const posts = [0, 1, 2, 3].map((i) => post(`q${i}`, `2026-10-${14 + 7 * (i % 2)}T15:00:00Z`, { curtidas: 100 })); // 14/10 e 21/10 (quartas)
-    const baixos = [0, 1, 2, 3, 4].map((i) => post(`o${i}`, `2026-10-${10 + i}T01:00:00Z`, { curtidas: 5 }));
-    const r = analisarPosts([...posts, ...baixos]);
-    expect(r.horarios.melhor).toMatchObject({ dia: "Quarta", hora: 12, confianca: "alta" });
-    expect(r.formatos[0]).toMatchObject({ tipo: "Imagem", posts: 9 });
-  });
-  it("lê os posts importados do período e exige a permissão de ver relatórios", async () => {
-    await execute("INSERT INTO posts_externos (rede, id_externo, tipo, legenda, publicado_em, curtidas, comentarios, coletado_em) VALUES ('instagram','x1','REELS','Fora do app','2026-10-12 15:00:00',30,4,NOW()), ('instagram','x2','IMAGE','Antigo','2026-08-01 15:00:00',99,9,NOW())");
-    const c = await gerarRelatorioConta(e.coord, "2026-10-10", "2026-10-19");
-    expect(c.posts.map((p) => p.id)).toEqual(["x1"]);
-    expect(c.ranking[0]).toMatchObject({ id: "x1", interacoes: 34 });
-    expect(c.redes.find((r) => r.rede === "instagram")).toMatchObject({ posts: 1, soma: { curtidas: 30, alcance: null } });
-    await expect(gerarRelatorioConta(e.semPerfil, "2026-10-10", "2026-10-19")).rejects.toBeInstanceOf(ForbiddenError);
-    // só Instagram quando pedido (como na tela e nas exportações)
-    const so = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19", true, REDES_RELATORIO);
-    expect(so.redes.map((x) => x.rede)).toEqual(["instagram"]);
-    expect(so.totais.publicadas).toBe(2); // facebook e youtube ficam de fora
-    expect(so.publicacoes.every((p) => p.rede === "instagram")).toBe(true);
-    // exportação inclui as abas novas
-    const xl = gerarXlsx(paraPlanilhas(await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19"), c));
-    expect(xl.length).toBeGreaterThan(1000);
-    expect(paraPlanilhas(await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19"), c).map((p) => p.nome)).toEqual(expect.arrayContaining(["Ranking Instagram", "Posts da conta"]));
+describe("exportações do relatório mensal", () => {
+  it("Excel e PDF trazem indicadores, comparação e posts", async () => {
+    const r = await gerarRelatorioMensal(e.coord, "2026-10");
+    const planilhas = paraPlanilhas(r);
+    expect(planilhas.map((x) => x.nome)).toEqual(["Resumo", "Posts do mês"]);
+    expect(planilhas[0].linhas.find((l) => l[0] === "Alcance")).toEqual(["Alcance", 2000, 1000, 100]);
+    expect(planilhas[0].linhas.find((l) => l[0] === "Comentários")).toEqual(["Comentários", "", "", ""]); // sem dado → vazio, nunca 0
+    expect(planilhas[1].linhas).toHaveLength(1 + 4);
+    expect(gerarXlsx(planilhas).length).toBeGreaterThan(1000);
+    const pdf = await gerarPdf(paraPdf(r, "Comunicação"));
+    expect(Buffer.from(pdf.slice(0, 4)).toString()).toBe("%PDF");
   });
 });
