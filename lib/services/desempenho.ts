@@ -199,37 +199,56 @@ export async function listarPublicacoes(actor: number, o: { janela?: string; for
   return { janela, ano, anos: await anosDisponiveis(contaId, hojeReal), de, ate: hoje, conta: escolhida?.usuario ?? null, contaId: escolhida?.igId ?? null, contas, formato, ordem, total: filtrados.length, posts: ordenados.slice(0, 120), grupos, melhor };
 }
 
-export type LinhaRanking = { periodo: string; seguidores: number | null; variacao: number | null; alcance: number | null; visualizacoes: number | null; visitasPerfil: number | null; interacoes: number | null; curtidas: number | null; comentarios: number | null; compartilhamentos: number | null; salvamentos: number | null; posts: number; reels: number };
-export type RankingSeguidores = { agrupar: "mes" | "ano"; conta: string | null; contaId: string | null; contas: ContaInstagram[]; linhas: LinhaRanking[]; top: PostCartao[]; seguidoresHoje: number | null };
+export type LinhaRanking = { periodo: string; parcial: boolean; seguidores: number | null; variacao: number | null; alcance: number | null; visualizacoes: number | null; visitasPerfil: number | null; interacoes: number | null; curtidas: number | null; comentarios: number | null; compartilhamentos: number | null; salvamentos: number | null; posts: number; reels: number };
+export const ORDENS_RANKING = ["interacoes", "alcance", "curtidas", "comentarios", "salvamentos", "compartilhamentos", "engajamento", "recentes"] as const;
+export const ORDEM_RANKING_ROTULO: Record<(typeof ORDENS_RANKING)[number], string> = { interacoes: "Interações", alcance: "Alcance", curtidas: "Curtidas", comentarios: "Comentários", salvamentos: "Salvamentos", compartilhamentos: "Compartilhamentos", engajamento: "Engajamento", recentes: "Mais recentes" };
+export type RankingSeguidores = {
+  agrupar: "mes" | "ano"; conta: string | null; contaId: string | null; contas: ContaInstagram[]; linhas: LinhaRanking[];
+  periodo: string; opcoesPeriodo: { valor: string; rotulo: string }[]; ordem: string; totalPosts: number; posts: PostCartao[];
+  seguidoresHoje: number | null; primeiraFoto: string | null;
+};
 
-/** "Ranking e seguidores": métricas por mês ou por ano (seguidores, variação, totais, posts/reels) e o ranking dos 10 melhores posts. */
-export async function gerarRanking(actor: number, o: { agrupar?: string; conta?: string }, agora = new Date()): Promise<RankingSeguidores> {
+const mesesEntre = (de: string, ate: string) => { const out: string[] = []; let [a, m] = de.split("-").map(Number); const [fa, fm] = ate.split("-").map(Number); while (a < fa || (a === fa && m <= fm)) { out.push(`${a}-${String(m).padStart(2, "0")}`); m++; if (m > 12) { m = 1; a++; } } return out; };
+
+/** "Ranking e seguidores": métricas por mês ou por ano (com meses/anos sem dado visíveis como "—") e o ranking dos conteúdos de um período, com ordenação. */
+export async function gerarRanking(actor: number, o: { agrupar?: string; conta?: string; periodo?: string; ordem?: string }, agora = new Date()): Promise<RankingSeguidores> {
   await assertCan(actor, "relatorios", "ver");
   const agrupar = o.agrupar === "ano" ? "ano" : "mes";
   const { contas, escolhida, contaId } = await escolherConta(o.conta);
-  const hoje = utcToLocal(agora).date;
+  const hoje = utcToLocal(agora).date, mesHoje = hoje.slice(0, 7), anoHoje = hoje.slice(0, 4);
   const [mensal, snaps, linhasPosts] = await Promise.all([
     query<RowDataPacket>(`SELECT periodo, ${SELECT_TOTAIS} FROM instagram_mensal WHERE conta_id = ? ORDER BY periodo ASC`, [contaId]),
     snapshots(contaId),
     query<RowDataPacket>("SELECT id_externo, tipo, legenda, url, miniatura, publicado_em, alcance, curtidas, comentarios, salvamentos, compartilhamentos, visualizacoes FROM posts_externos WHERE rede = 'instagram' AND conta_id = ? ORDER BY publicado_em DESC LIMIT 1000", [contaId]),
   ]);
   const posts: PostCartao[] = linhasPosts.map(postDeLinha).map((p) => ({ ...p, engajamento: engajamentoPost(p), formato: formatoDe(p) }));
+  const mesDe = (p: PostMes) => utcToLocal(new Date(p.publicado_em)).date.slice(0, 7);
   const chaveDe = (iso: string) => (agrupar === "ano" ? iso.slice(0, 4) : iso.slice(0, 7));
-  const periodos = new Set<string>();
-  mensal.forEach((m) => periodos.add(chaveDe(String(m.periodo))));
-  posts.forEach((p) => periodos.add(chaveDe(utcToLocal(new Date(p.publicado_em)).date)));
-  snaps.forEach((s) => periodos.add(chaveDe(s.dia)));
-  const ordenados = [...periodos].sort();
+
+  // Primeiro mês com algum dado: a tabela mostra todos os meses/anos de lá até hoje (os sem dado ficam "—")
+  const meses = new Set<string>([mesHoje]);
+  mensal.forEach((m) => meses.add(String(m.periodo))); posts.forEach((p) => meses.add(mesDe(p))); snaps.forEach((x) => meses.add(x.dia.slice(0, 7)));
+  const primeiroMes = [...meses].filter((m) => m <= mesHoje).sort()[0] ?? mesHoje;
+  const todosMeses = mesesEntre(primeiroMes, mesHoje);
+  const periodos = agrupar === "ano" ? [...new Set(todosMeses.map((m) => m.slice(0, 4)))] : todosMeses;
+
   const seguidoresDe = (per: string) => { const x = snaps.filter((s) => chaveDe(s.dia) === per); return x.length ? x[x.length - 1].seguidores : null; };
-  const linhas: LinhaRanking[] = ordenados.map((per, i) => {
-    const ms = mensal.filter((m) => chaveDe(String(m.periodo)) === per).map(linhaTotais);
-    const t = somar(ms);
+  const linhas: LinhaRanking[] = periodos.map((per, i) => {
+    const t = somar(mensal.filter((m) => chaveDe(String(m.periodo)) === per).map(linhaTotais));
     const dele = posts.filter((p) => chaveDe(utcToLocal(new Date(p.publicado_em)).date) === per);
-    const seg = seguidoresDe(per), antes = i > 0 ? seguidoresDe(ordenados[i - 1]) : null;
-    return { periodo: per, seguidores: seg, variacao: seg != null && antes != null ? seg - antes : null, alcance: t?.alcance ?? null, visualizacoes: t?.visualizacoes ?? null, visitasPerfil: t?.visitasPerfil ?? null, interacoes: t?.interacoes ?? null, curtidas: t?.curtidas ?? null, comentarios: t?.comentarios ?? null, compartilhamentos: t?.compartilhamentos ?? null, salvamentos: t?.salvamentos ?? null, posts: dele.filter((p) => p.tipo !== "REELS").length, reels: dele.filter((p) => p.tipo === "REELS").length };
-  }).reverse().filter((l) => l.periodo <= (agrupar === "ano" ? hoje.slice(0, 4) : hoje.slice(0, 7)));
-  const top = [...posts].sort((a, b) => b.interacoes - a.interacoes).slice(0, 10);
-  return { agrupar, conta: escolhida?.usuario ?? null, contaId: escolhida?.igId ?? null, contas, linhas, top, seguidoresHoje: snaps.length ? snaps[snaps.length - 1].seguidores : null };
+    const seg = seguidoresDe(per), antes = i > 0 ? seguidoresDe(periodos[i - 1]) : null;
+    return { periodo: per, parcial: per === (agrupar === "ano" ? anoHoje : mesHoje), seguidores: seg, variacao: seg != null && antes != null ? seg - antes : null, alcance: t?.alcance ?? null, visualizacoes: t?.visualizacoes ?? null, visitasPerfil: t?.visitasPerfil ?? null, interacoes: t?.interacoes ?? null, curtidas: t?.curtidas ?? null, comentarios: t?.comentarios ?? null, compartilhamentos: t?.compartilhamentos ?? null, salvamentos: t?.salvamentos ?? null, posts: dele.filter((p) => p.tipo !== "REELS").length, reels: dele.filter((p) => p.tipo === "REELS").length };
+  }).reverse();
+
+  // Ranking de conteúdos: período escolhido (Ano YYYY, mês ou todo) + ordenação
+  const anos = [...new Set(todosMeses.map((m) => m.slice(0, 4)))].reverse();
+  const opcoesPeriodo = [...anos.map((a) => ({ valor: `ano:${a}`, rotulo: `Ano ${a}` })), ...[...todosMeses].reverse().map((m) => ({ valor: `mes:${m}`, rotulo: `${MESES[Number(m.slice(5, 7)) - 1].toLowerCase()} de ${m.slice(0, 4)}` })), { valor: "todo", rotulo: "Todo o período" }];
+  const periodo = opcoesPeriodo.some((x) => x.valor === o.periodo) ? o.periodo! : `ano:${anoHoje}`;
+  const noPeriodo = posts.filter((p) => { const m = mesDe(p); return periodo === "todo" || (periodo.startsWith("ano:") ? m.startsWith(periodo.slice(4)) : m === periodo.slice(4)); });
+  const ordem = (ORDENS_RANKING as readonly string[]).includes(o.ordem ?? "") ? o.ordem! : "interacoes";
+  const chave: Record<string, (p: PostCartao) => number> = { interacoes: (p) => p.interacoes, alcance: (p) => p.alcance ?? -1, curtidas: (p) => p.curtidas ?? -1, comentarios: (p) => p.comentarios ?? -1, salvamentos: (p) => p.salvamentos ?? -1, compartilhamentos: (p) => p.compartilhamentos ?? -1, engajamento: (p) => p.engajamento ?? -1, recentes: (p) => +new Date(p.publicado_em) };
+  const ordenados = [...noPeriodo].sort((a, b) => chave[ordem](b) - chave[ordem](a) || +new Date(b.publicado_em) - +new Date(a.publicado_em));
+  return { agrupar, conta: escolhida?.usuario ?? null, contaId: escolhida?.igId ?? null, contas, linhas, periodo, opcoesPeriodo, ordem, totalPosts: noPeriodo.length, posts: ordenados.slice(0, 100), seguidoresHoje: snaps.length ? snaps[snaps.length - 1].seguidores : null, primeiraFoto: snaps.length ? snaps[0].dia : null };
 }
 
 /** Informa à mão os seguidores de um mês SEM registro automático (a Meta não entrega o passado). Nunca sobrescreve coleta real. */

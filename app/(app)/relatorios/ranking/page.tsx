@@ -2,7 +2,7 @@ import { contaPreferida } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
-import { gerarRanking } from "@/lib/services/desempenho";
+import { ORDENS_RANKING, ORDEM_RANKING_ROTULO, gerarRanking } from "@/lib/services/desempenho";
 import { MESES } from "@/lib/services/relatorios";
 import { Card, Empty } from "@/components/ui";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
@@ -15,6 +15,8 @@ export const dynamic = "force-dynamic";
 
 const v = (n: number | null) => (n == null ? <span className="text-xs text-tinta/40">—</span> : formatNumber(n));
 const rotulo = (p: string) => (p.length === 4 ? p : `${MESES[Number(p.slice(5, 7)) - 1]} de ${p.slice(0, 4)}`);
+const dataBr = (iso: string) => iso.split("-").reverse().join("/");
+const campo = "mt-1 block min-h-10 rounded-lg border border-borda bg-white px-2 text-sm";
 
 export default async function Ranking({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const user = await requireUser();
@@ -43,30 +45,37 @@ export default async function Ranking({ searchParams }: { searchParams: Promise<
             <caption className="sr-only">Métricas por período</caption>
             <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr><th scope="col" className="py-2">{d.agrupar === "ano" ? "Ano" : "Mês"}</th>{["Seguidores", "Variação", "Alcance", "Visualizações", "Visitas ao perfil", "Interações", "Curtidas", "Comentários", "Compart.", "Salvamentos", "Posts", "Reels"].map((h) => <th key={h} scope="col" className="px-2 text-right">{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-borda">{d.linhas.map((l) => (
-              <tr key={l.periodo}><th scope="row" className="py-2 font-medium">{rotulo(l.periodo)}</th>
+              <tr key={l.periodo}><th scope="row" className="py-2 font-medium">{rotulo(l.periodo)}{l.parcial && <div className="text-[11px] font-normal text-tinta/60">em andamento (parcial)</div>}</th>
                 <td className="px-2 text-right">{v(l.seguidores)}</td>
                 <td className="px-2 text-right">{l.variacao == null ? <span className="text-xs text-tinta/40">—</span> : <span className={l.variacao >= 0 ? "text-green-700" : "text-red-700"}>{l.variacao >= 0 ? "+" : ""}{formatNumber(l.variacao)}</span>}</td>
                 {[l.alcance, l.visualizacoes, l.visitasPerfil, l.interacoes, l.curtidas, l.comentarios, l.compartilhamentos, l.salvamentos, l.posts, l.reels].map((x, i) => <td key={i} className="px-2 text-right">{v(x)}</td>)}</tr>
             ))}</tbody>
           </table>
         )}
-        <p className="mt-3 text-xs text-tinta/60">“—” = a Meta não informa esse mês (ela só guarda um histórico limitado) ou ainda não foi carregado. Seguidores só existem a partir da primeira coleta (ou do que você informar abaixo).</p>
+        <p className="mt-3 text-xs text-tinta/60">Alcance, visualizações e visitas somam os meses carregados (no ano, pessoas alcançadas em meses diferentes podem se repetir). Seguidores: a Meta não informa o histórico; o sistema guarda uma foto por sincronização{d.primeiraFoto ? ` desde ${dataBr(d.primeiraFoto)}` : ""}, então períodos anteriores ficam “—” até a primeira foto (ou até você informar o número abaixo). “Carregar histórico” busca até 12 meses de totais na Meta.</p>
       </Card>
 
-      <Card title="Ranking de conteúdos — os 10 melhores (curtidas + comentários + compartilhamentos + salvamentos)" className="overflow-x-auto">
-        {d.top.length === 0 ? <Empty>Sem publicações importadas.</Empty> : (
+      <Card title={`Ranking de conteúdos (${d.totalPosts})`} className="overflow-x-auto">
+        <form method="get" className="mb-3 flex flex-wrap items-end gap-2" aria-label="Filtros do ranking">
+          <input type="hidden" name="agrupar" value={d.agrupar} />
+          <label className="text-xs">Período<select name="periodo" defaultValue={d.periodo} className={campo}>{d.opcoesPeriodo.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}</select></label>
+          <label className="text-xs">Ordenar por<select name="ordem" defaultValue={d.ordem} className={campo}>{ORDENS_RANKING.map((o) => <option key={o} value={o}>{ORDEM_RANKING_ROTULO[o]}</option>)}</select></label>
+          <button className="min-h-10 rounded-lg bg-verde px-4 text-sm text-white">Aplicar</button>
+        </form>
+        {d.posts.length === 0 ? <Empty>Sem publicações neste período.</Empty> : (
           <table className="w-full min-w-[820px] text-left text-sm">
-            <caption className="sr-only">Melhores publicações</caption>
-            <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr><th scope="col" className="w-10 py-2">#</th><th scope="col" className="w-14">Foto</th><th scope="col">Publicação</th>{["Alcance", "Curtidas", "Coment.", "Compart.", "Salvos", "Interações", "Engaj."].map((h) => <th key={h} scope="col" className="px-2 text-right">{h}</th>)}</tr></thead>
-            <tbody className="divide-y divide-borda">{d.top.map((p, i) => (
+            <caption className="sr-only">Ranking de conteúdos</caption>
+            <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr><th scope="col" className="w-10 py-2">#</th><th scope="col" className="w-14">Foto</th><th scope="col">Publicação</th>{["Alcance", "Curtidas", "Comentários", "Salvamentos", "Compartilh.", "Interações", "Engajamento"].map((h) => <th key={h} scope="col" className="px-2 text-right">{h}</th>)}</tr></thead>
+            <tbody className="divide-y divide-borda">{d.posts.map((p, i) => (
               <tr key={p.id}><td className="py-2 font-semibold text-verde-escuro">{i + 1}º</td>
                 <td className="py-1">{p.miniatura /* eslint-disable-next-line @next/next/no-img-element */ ? <img src={p.miniatura} alt="" width={44} height={44} loading="lazy" referrerPolicy="no-referrer" className="h-11 w-11 rounded object-cover" /> : <span className="block h-11 w-11 rounded bg-borda/40" />}</td>
                 <th scope="row" className="max-w-sm py-2 pr-2 font-normal">{p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-verde-escuro hover:underline">{(p.legenda ?? "Sem legenda").slice(0, 110)}</a> : (p.legenda ?? "Sem legenda").slice(0, 110)}<div className="text-xs text-tinta/60">{p.formato} · {new Date(p.publicado_em).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</div></th>
-                {[p.alcance, p.curtidas, p.comentarios, p.compartilhamentos, p.salvamentos].map((x, j) => <td key={j} className="px-2 text-right">{v(x)}</td>)}
+                {[p.alcance, p.curtidas, p.comentarios, p.salvamentos, p.compartilhamentos].map((x, j) => <td key={j} className="px-2 text-right">{v(x)}</td>)}
                 <td className="px-2 text-right font-semibold">{formatNumber(p.interacoes)}</td><td className="px-2 text-right">{p.engajamento == null ? "—" : `${p.engajamento.toLocaleString("pt-BR")}%`}</td></tr>
             ))}</tbody>
           </table>
         )}
+        {d.totalPosts > d.posts.length && <p className="mt-2 text-xs text-tinta/60">Mostrando os {d.posts.length} primeiros de {d.totalPosts}.</p>}
       </Card>
 
       {d.conta && (

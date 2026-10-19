@@ -126,8 +126,12 @@ describe("publicações (cartões), ranking e seguidores", () => {
     const m = await gerarRanking(e.coord, {}, AGORA);
     expect(m.linhas[0]).toMatchObject({ periodo: "2026-10", seguidores: 22288, variacao: 51, alcance: 45611, posts: 2, reels: 1 }); // 22288 − 22237 (set); "posts" não inclui reels
     expect(m.linhas.find((l) => l.periodo === "2026-09")).toMatchObject({ seguidores: 22237, alcance: 55488, posts: 1 });
-    expect(m.top[0].id).toBe("velho"); expect(m.top[1].id).toBe("reel1"); expect(m.top.length).toBeLessThanOrEqual(10);
+    expect(m.linhas[0].parcial).toBe(true); expect(m.linhas[1].parcial).toBe(false);
+    expect(m.linhas.map((l) => l.periodo).slice(0, 3)).toEqual(["2026-10", "2026-09", "2026-08"]); // meses sem dado aparecem (com "—")
+    expect(m.linhas.find((l) => l.periodo === "2026-08")).toMatchObject({ seguidores: null, alcance: null, posts: 1 }); // só o post "velho"
+    expect(m.linhas.at(-1)?.periodo).toBe("2025-12"); expect(m.primeiraFoto).toBe("2026-09-30");
     const a = await gerarRanking(e.coord, { agrupar: "ano" }, AGORA);
+    expect(a.linhas[0].parcial).toBe(true);
     expect(a.linhas.map((l) => l.periodo)).toEqual(["2026", "2025"]);
     expect(a.linhas[0]).toMatchObject({ alcance: 45611 + 55488, interacoes: 6681 + 10708 });
   });
@@ -140,5 +144,27 @@ describe("publicações (cartões), ranking e seguidores", () => {
     await expect(informarSeguidoresMes(e.admin, undefined, "2026-13", 1, AGORA)).rejects.toBeInstanceOf(DomainError);
     await expect(informarSeguidoresMes(e.admin, undefined, "2026-04", -5, AGORA)).rejects.toBeInstanceOf(DomainError);
     await expect(informarSeguidoresMes(e.coord, undefined, "2026-04", 100, AGORA)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe("ranking de conteúdos: período e ordenação", () => {
+  it("opções de período (anos, meses, todo) e filtro por ano/mês/todo", async () => {
+    const r = await gerarRanking(e.coord, {}, AGORA);
+    expect(r.periodo).toBe("ano:2026"); expect(r.opcoesPeriodo[0]).toEqual({ valor: "ano:2026", rotulo: "Ano 2026" });
+    expect(r.opcoesPeriodo.map((o) => o.valor)).toEqual(expect.arrayContaining(["ano:2025", "mes:2026-10", "mes:2026-09", "todo"]));
+    expect(r.opcoesPeriodo.find((o) => o.valor === "mes:2026-10")?.rotulo).toBe("outubro de 2026");
+    expect(r.totalPosts).toBe(5); expect(r.posts[0].id).toBe("velho"); // 999 curtidas em agosto/2026
+    const out = await gerarRanking(e.coord, { periodo: "mes:2026-10" }, AGORA);
+    expect(out.totalPosts).toBe(3); expect(out.posts.map((p) => p.id)).toEqual(["reel1", "car1", "feed1"]);
+    expect((await gerarRanking(e.coord, { periodo: "mes:2099-01" }, AGORA)).periodo).toBe("ano:2026"); // opção inexistente volta ao padrão
+  });
+  it("ordena por qualquer métrica (ausente fica por último)", async () => {
+    const p = (ordem: string) => gerarRanking(e.coord, { periodo: "mes:2026-10", ordem }, AGORA).then((r) => r.posts.map((x) => x.id));
+    expect(await p("alcance")).toEqual(["reel1", "feed1", "car1"]); // só reel1 tem alcance; empate: o mais recente primeiro
+    expect(await p("curtidas")).toEqual(["reel1", "car1", "feed1"]);
+    expect(await p("salvamentos")).toEqual(["reel1", "car1", "feed1"]);
+    expect(await p("engajamento")).toEqual(["reel1", "feed1", "car1"]);
+    expect((await p("recentes"))[0]).toBe("feed1");
+    expect(await p("invalida")).toEqual(["reel1", "car1", "feed1"]); // cai em interações
   });
 });
