@@ -9,6 +9,7 @@ import { desempenhoParaPlanilhas, paraPdf, paraPlanilhas } from "@/lib/export/re
 import { lerConfig } from "@/lib/services/configuracoes";
 import { audit } from "@/lib/services/audit";
 import { DomainError } from "@/lib/services/errors";
+import { contaPreferida } from "@/lib/auth/conta";
 import { limitar } from "@/lib/auth/limite";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +26,11 @@ export async function GET(req: NextRequest) {
   try {
     await assertCan(user.id, "relatorios", "exportar");
     if (p.get("tipo") === "desempenho") {
-      const d = await gerarDesempenho(user.id, p.get("janela") ?? undefined, p.get("conta") || undefined, new Date(), p.get("ano") ?? undefined);
+      const d = await gerarDesempenho(user.id, p.get("janela") ?? undefined, p.get("conta") || (await contaPreferida()), new Date(), p.get("ano") ?? undefined);
       await audit(user.id, "relatorio.exportar", { entidade: "relatorio", detalhes: { formato: "xlsx", tipo: "desempenho", janela: d.janela } });
       return new NextResponse(new Uint8Array(gerarXlsx(desempenhoParaPlanilhas(d))), { headers: { ...h, "Content-Disposition": `attachment; filename="desempenho-instagram-${d.janela}-${d.ate}.xlsx"`, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } });
     }
-    const rel = await gerarRelatorioMensal(user.id, p.get("mes") ?? mesAtual(), p.get("conta") || undefined);
+    const rel = await gerarRelatorioMensal(user.id, p.get("mes") ?? mesAtual(), p.get("conta") || (await contaPreferida()));
     await audit(user.id, "relatorio.exportar", { entidade: "relatorio", detalhes: { formato, mes: rel.mes } });
     const nome = `relatorio-instagram-${rel.mes}.${formato}`;
     const cab = { ...h, "Content-Disposition": `attachment; filename="${nome}"` };

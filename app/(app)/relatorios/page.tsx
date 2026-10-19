@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { contaPreferida } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
@@ -132,8 +133,8 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
   await exigir(user.id, "relatorios", "ver");
   const perms = await permissoesDe(user.id);
   const sp = await searchParams;
-  const d = await gerarDesempenho(user.id, sp.janela, sp.conta, new Date(), sp.ano);
-  const cta = d.contaId && d.contas.length > 1 ? `&conta=${d.contaId}` : "";
+  const d = await gerarDesempenho(user.id, sp.janela, sp.conta ?? (await contaPreferida()), new Date(), sp.ano);
+  const cta = "";
   const link = (j: string, ano?: string) => `?janela=${j}${ano ? `&ano=${ano}` : ""}${cta}`;
   return (
     <div className="space-y-5">
@@ -147,14 +148,8 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
           {d.janela === "ano" && (
             <nav aria-label="Ano" className="flex flex-wrap gap-1.5">{[...d.anos].reverse().map((a) => <Link key={a} href={link("ano", a)} aria-current={d.ano === a ? "page" : undefined} className={`rounded-lg border px-3 py-1 text-sm ${d.ano === a ? "border-cobre bg-cobre/15 font-semibold" : "border-borda bg-white hover:bg-fundo"}`}>{a}</Link>)}</nav>
           )}
-          {d.contas.length > 1 && (
-            <form method="get" className="flex items-center gap-2"><input type="hidden" name="janela" value={d.janela} />{d.janela === "ano" && <input type="hidden" name="ano" value={d.ano} />}
-              <label className="sr-only" htmlFor="conta">Conta</label>
-              <select id="conta" name="conta" defaultValue={d.contaId ?? ""} className="min-h-9 rounded-lg border border-borda bg-white px-2 text-sm">{d.contas.map((c) => <option key={c.igId} value={c.igId}>{c.usuario}{c.principal ? " (principal)" : ""}</option>)}</select>
-              <button className="min-h-9 rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Ver</button></form>
-          )}
           <span className="ml-auto flex flex-wrap gap-2">
-            <Link href={`/relatorios/mensal${d.contaId && d.contas.length > 1 ? `?conta=${d.contaId}` : ""}`} className="inline-flex min-h-9 items-center rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Relatório mensal (imprimir)</Link>
+            <Link href="/relatorios/mensal" className="inline-flex min-h-9 items-center rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Relatório mensal (imprimir)</Link>
             {perms.has("relatorios:exportar") && <a href={`/api/relatorios/exportar?tipo=desempenho&formato=xlsx&janela=${d.janela}&ano=${d.ano}&conta=${d.contaId ?? ""}`} className="inline-flex min-h-9 items-center rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Excel</a>}
           </span>
         </div>

@@ -1,3 +1,4 @@
+import { contaPreferida } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { ORDENS, ORDEM_ROTULO, FORMATOS_FILTRO, JANELAS, JANELA_ROTULO, listarPublicacoes } from "@/lib/services/desempenho";
@@ -16,7 +17,7 @@ export default async function Publicacoes({ searchParams }: { searchParams: Prom
   const user = await requireUser();
   await exigir(user.id, "relatorios", "ver");
   const sp = await searchParams;
-  const d = await listarPublicacoes(user.id, sp);
+  const d = await listarPublicacoes(user.id, { ...sp, conta: sp.conta ?? (await contaPreferida()) });
   return (
     <div className="space-y-5">
       <header className="rounded-2xl border border-borda bg-cartao p-5">
@@ -30,7 +31,6 @@ export default async function Publicacoes({ searchParams }: { searchParams: Prom
         <label className="text-xs">Ano<select name="ano" defaultValue={d.ano} className={campo}>{[...d.anos].reverse().map((a) => <option key={a} value={a}>{a}</option>)}</select></label>
         <label className="text-xs">Formato<select name="formato" defaultValue={d.formato} className={campo}>{FORMATOS_FILTRO.map((f) => <option key={f} value={f}>{f === "todos" ? "Todos os formatos" : f}</option>)}</select></label>
         <label className="text-xs">Ordenar por<select name="ordem" defaultValue={d.ordem} className={campo}>{ORDENS.map((o) => <option key={o} value={o}>{ORDEM_ROTULO[o]}</option>)}</select></label>
-        {d.contas.length > 1 && <label className="text-xs">Conta<select name="conta" defaultValue={d.contaId ?? ""} className={campo}>{d.contas.map((c) => <option key={c.igId} value={c.igId}>{c.usuario}</option>)}</select></label>}
         <button className="min-h-10 rounded-lg bg-verde px-4 text-sm text-white">Aplicar</button>
         <span className="ml-auto text-xs text-tinta/60">{d.total} publicação(ões)</span>
       </form>

@@ -1,3 +1,4 @@
+import { contaPreferida } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
@@ -93,7 +94,7 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
   const perms = await permissoesDe(user.id);
   const sp = await searchParams;
   const mes = sp.mes && mesValido(sp.mes) ? sp.mes : mesAtual();
-  const rel = await gerarRelatorioMensal(user.id, mes, sp.conta);
+  const rel = await gerarRelatorioMensal(user.id, mes, sp.conta ?? (await contaPreferida()));
   const ig = rel.conta;
   return (
     <div className="space-y-5">
@@ -108,9 +109,6 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
       <RelNav atual="mensal" conta={rel.contas.length > 1 ? rel.contaId : null} />
       <form method="get" className="no-print flex flex-wrap items-end gap-2 rounded-xl border border-borda bg-cartao p-3" aria-label="Mês">
         <label className="text-xs">Mês<input type="month" name="mes" defaultValue={mes} max={mesAtual()} className="mt-1 block min-h-10 rounded-lg border border-borda px-2 text-sm" /></label>
-        {rel.contas.length > 1 && (
-          <label className="text-xs">Conta<select name="conta" defaultValue={rel.contaId ?? ""} className="mt-1 block min-h-10 rounded-lg border border-borda px-2 text-sm">{rel.contas.map((c) => <option key={c.igId} value={c.igId}>{c.usuario}{c.principal ? " (principal)" : ""}</option>)}</select></label>
-        )}
         <button className="min-h-10 rounded-lg bg-verde px-4 text-sm text-white">Atualizar tela</button>
       </form>
 
