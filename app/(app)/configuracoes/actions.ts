@@ -8,9 +8,11 @@ import { senhaNovaSchema } from "@/lib/validation/auth";
 import { atualizarPerfil } from "@/lib/services/equipe";
 import { encerrarOutrasSessoes, encerrarSessao, trocarSenha } from "@/lib/services/senha";
 import { salvarConfig } from "@/lib/services/configuracoes";
-import { desconectar, iniciarConexao } from "@/lib/integracoes/contas";
+import { desconectar, iniciarConexao, removerContaInstagram } from "@/lib/integracoes/contas";
 import { REDES, REDES_ATIVAS, type Rede } from "@/lib/editorial";
 import { isTime } from "@/lib/time";
+import { assertCan } from "@/lib/permissions";
+import { executarAgendador } from "@/lib/services/agendador";
 
 const g = (f: FormData, k: string) => { const v = f.get(k); return typeof v === "string" ? v : ""; };
 
@@ -45,3 +47,14 @@ export const conectarAction = guarded(async (u, f) => {
   redirect(await iniciarConexao(u.id, rede, await baseUrl()));
 }, []);
 export const desconectarAction = guarded(async (u, f) => { await desconectar(u.id, z.enum(REDES).parse(f.get("rede"))); return { ok: "Rede desconectada. Os tokens foram apagados." }; }, ["/configuracoes/redes", "/publicacoes"]);
+
+export const executarAgendadorAction = guarded(async (u) => {
+  await assertCan(u.id, "configuracoes", "gerir");
+  const r = await executarAgendador("manual", await baseUrl());
+  return { ok: "ocupado" in r && r.ocupado ? "Já havia uma rodada em andamento. Tente de novo em instantes." : "Agendador executado agora." };
+}, ["/configuracoes/geral"]);
+
+export const removerContaAction = guarded(async (u, f) => {
+  await removerContaInstagram(u.id, z.string().regex(/^\d{1,40}$/, "Conta inválida.").parse(f.get("igId")));
+  return { ok: "Conta removida e dados dela apagados." };
+}, ["/configuracoes/redes", "/relatorios"]);

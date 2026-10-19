@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import Image from "next/image";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
@@ -9,12 +10,14 @@ import { permissoesDe, perfisDe, PERFIL_ROTULO } from "@/lib/permissions";
 import { itensVisiveis } from "@/lib/nav";
 import { BottomNav, SidebarNav } from "@/components/nav";
 import { contagensMenu } from "@/lib/services/painel";
+import { garantirAgendador } from "@/lib/services/agendador";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  after(garantirAgendador); // rede de segurança caso o cron externo falhe
   const [notif, perms, perfis] = await Promise.all([naoLidas(user.id), permissoesDe(user.id), perfisDe(user.id)]);
   const itens = itensVisiveis(perms);
   const badges = await contagensMenu(user.id, perms);

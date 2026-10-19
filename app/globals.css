@@ -40,3 +40,12 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--verde); }
 :focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
 a, button, summary { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+/* Impressão (relatórios em A4): esconde a navegação e mantém as cores. */
+@media print {
+  @page { size: A4; margin: 10mm 12mm 14mm; }
+  html, body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  aside, nav[aria-label], header.sticky, .no-print { display: none !important; }
+  .lg\:grid { display: block !important; }
+  .print-keep { break-inside: avoid; page-break-inside: avoid; }
+}

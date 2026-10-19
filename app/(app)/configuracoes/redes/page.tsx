@@ -4,14 +4,14 @@ import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { baseUrl } from "@/lib/auth/guard";
 import { permissoesDe } from "@/lib/permissions";
-import { logs, redirectUri, statusRedes } from "@/lib/integracoes/contas";
+import { contasInstagram, logs, redirectUri, statusRedes } from "@/lib/integracoes/contas";
 import { cifraDisponivel } from "@/lib/integracoes/cripto";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, Empty } from "@/components/ui";
 import { RedeTag } from "@/components/pub-ui";
 import { REDE_ROTULO } from "@/lib/editorial";
 import { formatDateTime } from "@/lib/format";
-import { conectarAction, desconectarAction } from "../actions";
+import { conectarAction, desconectarAction, removerContaAction } from "../actions";
 
 export const metadata = { title: "Redes sociais e integrações" };
 export const dynamic = "force-dynamic";
@@ -30,6 +30,7 @@ export default async function Redes({ searchParams }: { searchParams: Promise<{ 
   const sp = await searchParams;
   const [perms, redes, ls, base, ult] = await Promise.all([permissoesDe(user.id), statusRedes(user.id), logs(user.id, 40), baseUrl(), query<RowDataPacket>("SELECT valor FROM settings WHERE chave = 'cron_ultima_execucao'")]);
   const gerir = perms.has("integracoes:gerir");
+  const contasIg = await contasInstagram();
   return (
     <div className="space-y-5">
       {sp.ok && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{sp.ok}</p>}
@@ -43,6 +44,18 @@ export default async function Redes({ searchParams }: { searchParams: Promise<{ 
             <li key={r.rede}><Card>
               <p className="flex flex-wrap items-center gap-2"><RedeTag rede={r.rede} comNome /><Badge tom={tom}>{rot}</Badge></p>
               {r.conta && <p className="mt-2 text-sm">{r.conta.nome ?? "Conta"} · conectada em {formatDateTime(r.conta.conectadaEm)}{r.conta.expiraEm ? ` · acesso até ${formatDateTime(r.conta.expiraEm)}` : ""}</p>}
+              {r.rede === "instagram" && contasIg.length > 0 && (
+                <div className="mt-3 rounded-lg border border-borda bg-white p-3 text-sm">
+                  <p className="mb-1 text-xs font-semibold uppercase text-tinta/60">Contas acompanhadas ({contasIg.length})</p>
+                  <ul className="divide-y divide-borda">{contasIg.map((c) => (
+                    <li key={c.igId} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                      <span>{c.usuario} <Badge tom={c.principal ? "verde" : "cinza"}>{c.principal ? "principal (publica)" : "só métricas"}</Badge></span>
+                      {gerir && !c.principal && <ActionForm action={removerContaAction} submit="Remover" danger className="space-y-0"><input type="hidden" name="igId" value={c.igId} /></ActionForm>}
+                    </li>))}
+                  </ul>
+                  <p className="mt-2 text-xs text-tinta/60">Ao conectar, todas as Páginas com Instagram profissional que você autorizar entram aqui. Para acompanhar outra conta, clique em Reconectar e marque também a Página dela. A principal é a que recebe as publicações.</p>
+                </div>
+              )}
               {r.conta?.ultimoErro && <p className="mt-1 rounded bg-red-50 p-2 text-xs text-red-900">{r.conta.ultimoErro}</p>}
               {!r.appConfigurado && <p className="mt-2 text-sm">Defina no ambiente: <code>{r.variaveis.join("</code>, <code>")}</code>.</p>}
               <details className="mt-2 text-xs text-tinta/70"><summary className="cursor-pointer">Requisitos e permissões</summary>

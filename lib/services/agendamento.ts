@@ -1,14 +1,14 @@
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { comTrava, execute, query, tx } from "@/lib/db";
 import { assertCan, ForbiddenError } from "@/lib/permissions";
-import { REDES_ATIVAS, problemasDoConteudo, textoDaRede, type Formato, type Rede, type Status } from "@/lib/editorial";
+import { REDES_ATIVAS, REDE_ROTULO, problemasDoConteudo, textoDaRede, type Formato, type Rede, type Status } from "@/lib/editorial";
 import { audit } from "./audit";
 import { DomainError, NotFoundError } from "./errors";
 import { destinatariosCom, notificar, notificarSeguro } from "./notificacoes";
 import { lerConfig } from "./configuracoes";
 import { conteudoParaValidar, getPub, podeEditar, type Pub, type PubRede } from "./publicacoes";
 import { localToUtc, utcToLocal } from "@/lib/time";
-import { contaAtiva, logIntegracao, marcarContaComErro } from "@/lib/integracoes/contas";
+import { contaAtiva, contasInstagramAtivas, logIntegracao, marcarContaComErro } from "@/lib/integracoes/contas";
 import { provedor } from "@/lib/integracoes";
 import { mascarar } from "@/lib/integracoes/cripto";
 import { urlPublicaTemporaria } from "./midia";
@@ -310,43 +310,113 @@ export async function coletarMetricas(agora = new Date()): Promise<{ publicacoes
     } catch (e) { await logIntegracao(rede, "aviso", "metricas_falhou", e instanceof Error ? e.message : "erro"); }
   }
   for (const rede of REDES_ATIVAS) {
-    const ca = contas.get(rede) ?? (await contaAtiva(rede, agora));
-    if ("erro" in ca) continue;
-    try {
-      const m = await provedor(rede).metricasConta(ca.conta);
-      if (m) {
-        const dia = utcToLocal(agora).date;
-        await execute("INSERT INTO metricas_conta (rede, dia, seguidores, alcance, visualizacoes) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE seguidores = VALUES(seguidores), alcance = VALUES(alcance), visualizacoes = VALUES(visualizacoes)",
-          [rede, dia, m.seguidores ?? null, m.alcance ?? null, m.visualizacoes ?? null]);
-        out.contas++;
-      }
-    } catch (e) { await logIntegracao(rede, "aviso", "metricas_conta_falhou", e instanceof Error ? e.message : "erro"); }
-    out.postsConta += await importarPostsDaConta(rede, ca.conta, agora);
+    for (const c of await contasDaRede(rede, agora)) {
+      const r = await sincronizarUmaConta(rede, c.conta, agora, { meses: rede === "instagram" ? 2 : 0 });
+      out.contas += r.contas; out.postsConta += r.posts;
+    }
   }
   return out;
 }
 
 /** Importa os posts recentes da conta inteira (inclusive os feitos fora do app). No máximo a cada 6 h por rede. */
-const JANELA_POSTS_DIAS = 90, LIMITE_POSTS = 60;
-async function importarPostsDaConta(rede: Rede, conta: Parameters<ReturnType<typeof provedor>["metricasConta"]>[0], agora: Date): Promise<number> {
+const JANELA_POSTS_DIAS = 400, LIMITE_POSTS = 200;
+type ContaDaRede = Parameters<ReturnType<typeof provedor>["metricasConta"]>[0];
+async function importarPostsDaConta(rede: Rede, conta: ContaDaRede, agora: Date, forcar = false): Promise<{ n: number; erro?: string }> {
   const prov = provedor(rede);
-  if (!prov.listarPostsConta) return 0;
-  const recente = await query<RowDataPacket>("SELECT 1 FROM posts_externos WHERE rede = ? AND coletado_em > DATE_SUB(?, INTERVAL 6 HOUR) LIMIT 1", [rede, agora]);
-  if (recente.length) return 0;
+  if (!prov.listarPostsConta) return { n: 0 };
+  if (!forcar) {
+    const recente = await query<RowDataPacket>("SELECT 1 FROM posts_externos WHERE rede = ? AND conta_id = ? AND coletado_em > DATE_SUB(?, INTERVAL 6 HOUR) LIMIT 1", [rede, conta.contaExternaId ?? "", agora]);
+    if (recente.length) return { n: 0 };
+  }
   try {
     const desde = new Date(agora.getTime() - JANELA_POSTS_DIAS * 86_400_000);
     const posts = await prov.listarPostsConta(conta, desde, LIMITE_POSTS);
     for (const p of posts) {
       await execute(
-        `INSERT INTO posts_externos (rede, id_externo, tipo, legenda, url, publicado_em, alcance, curtidas, comentarios, compartilhamentos, salvamentos, visualizacoes, coletado_em)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-         ON DUPLICATE KEY UPDATE tipo = VALUES(tipo), legenda = VALUES(legenda), url = VALUES(url), alcance = VALUES(alcance), curtidas = VALUES(curtidas), comentarios = VALUES(comentarios),
-           compartilhamentos = VALUES(compartilhamentos), salvamentos = VALUES(salvamentos), visualizacoes = VALUES(visualizacoes), coletado_em = VALUES(coletado_em)`,
-        [rede, p.idExterno, p.tipo, p.legenda?.slice(0, 2000) ?? null, p.url, p.publicadoEm, p.alcance ?? null, p.curtidas ?? null, p.comentarios ?? null, p.compartilhamentos ?? null, p.salvamentos ?? null, p.visualizacoes ?? null, agora]);
+        `INSERT INTO posts_externos (rede, conta_id, id_externo, tipo, legenda, url, miniatura, publicado_em, alcance, curtidas, comentarios, compartilhamentos, salvamentos, visualizacoes, coletado_em)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE conta_id = VALUES(conta_id), tipo = VALUES(tipo), legenda = VALUES(legenda), url = VALUES(url), miniatura = VALUES(miniatura), alcance = COALESCE(VALUES(alcance), alcance), curtidas = VALUES(curtidas), comentarios = VALUES(comentarios),
+           compartilhamentos = COALESCE(VALUES(compartilhamentos), compartilhamentos), salvamentos = COALESCE(VALUES(salvamentos), salvamentos), visualizacoes = COALESCE(VALUES(visualizacoes), visualizacoes), coletado_em = VALUES(coletado_em)`,
+        [rede, conta.contaExternaId ?? "", p.idExterno, p.tipo, p.legenda?.slice(0, 2000) ?? null, p.url, p.miniatura ?? null, p.publicadoEm, p.alcance ?? null, p.curtidas ?? null, p.comentarios ?? null, p.compartilhamentos ?? null, p.salvamentos ?? null, p.visualizacoes ?? null, agora]);
     }
     if (posts.length) await logIntegracao(rede, "info", "posts_importados", `${posts.length} post(s) da conta atualizados`);
-    return posts.length;
-  } catch (e) { await logIntegracao(rede, "aviso", "posts_conta_falhou", e instanceof Error ? e.message : "erro"); return 0; }
+    return { n: posts.length };
+  } catch (e) {
+    const msg = mascarar(e instanceof Error ? e.message : "erro");
+    await logIntegracao(rede, "aviso", "posts_conta_falhou", msg);
+    return { n: 0, erro: msg };
+  }
+}
+
+/** Contas de uma rede prontas para leitura. Instagram: a principal + as extras das demais Páginas. */
+async function contasDaRede(rede: Rede, agora: Date): Promise<{ conta: ContaDaRede; rotulo: string }[]> {
+  if (rede === "instagram") return (await contasInstagramAtivas(agora)).map((c) => ({ conta: c.conta, rotulo: c.usuario }));
+  const ca = await contaAtiva(rede, agora);
+  return "conta" in ca ? [{ conta: ca.conta, rotulo: REDE_ROTULO[rede] }] : [];
+}
+
+/** Uma rodada de leitura de UMA conta: seguidores do dia, métricas mensais (Instagram) e posts. Nunca lança; devolve os erros. */
+async function sincronizarUmaConta(rede: Rede, conta: ContaDaRede, agora: Date, o: { meses: number; forcar?: boolean }): Promise<{ contas: number; posts: number; meses: number; erro?: string }> {
+  const out = { contas: 0, posts: 0, meses: 0, erro: undefined as string | undefined };
+  const contaId = conta.contaExternaId ?? "";
+  try {
+    const m = await provedor(rede).metricasConta(conta);
+    if (m) {
+      await execute("INSERT INTO metricas_conta (rede, conta_id, dia, seguidores, alcance, visualizacoes) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE seguidores = VALUES(seguidores), alcance = VALUES(alcance), visualizacoes = VALUES(visualizacoes)",
+        [rede, contaId, utcToLocal(agora).date, m.seguidores ?? null, m.alcance ?? null, m.visualizacoes ?? null]);
+      out.contas++;
+    }
+  } catch (e) { await logIntegracao(rede, "aviso", "metricas_conta_falhou", e instanceof Error ? e.message : "erro"); }
+  if (rede === "instagram" && o.meses > 0) {
+    const mm = await atualizarMesesInstagram(conta, o.meses, agora);
+    out.meses = mm.meses; out.erro = mm.erro;
+  }
+  const r = await importarPostsDaConta(rede, conta, agora, o.forcar);
+  out.posts = r.n; out.erro = r.erro ?? out.erro;
+  return out;
+}
+
+/** Totais mensais da conta (alcance, visitas, interações...) dos últimos `meses` meses, guardados em instagram_mensal por conta. */
+export async function atualizarMesesInstagram(conta: ContaDaRede, meses: number, agora = new Date()): Promise<{ meses: number; erro?: string }> {
+  const prov = provedor("instagram");
+  if (!prov.metricasMes) return { meses: 0 };
+  const contaId = conta.contaExternaId ?? "";
+  const l = utcToLocal(agora);
+  let ano = Number(l.date.slice(0, 4)), mes = Number(l.date.slice(5, 7)), n = 0, erro: string | undefined;
+  for (let i = 0; i < meses; i++) {
+    const periodo = `${ano}-${String(mes).padStart(2, "0")}`;
+    try {
+      const m = await prov.metricasMes(conta, ano, mes, agora);
+      if (m) {
+        await execute(
+          `INSERT INTO instagram_mensal (conta_id, periodo, alcance, visualizacoes, visitas_perfil, interacoes, curtidas, comentarios, compartilhamentos, salvamentos, atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+           ON DUPLICATE KEY UPDATE alcance = VALUES(alcance), visualizacoes = VALUES(visualizacoes), visitas_perfil = VALUES(visitas_perfil), interacoes = VALUES(interacoes), curtidas = VALUES(curtidas),
+             comentarios = VALUES(comentarios), compartilhamentos = VALUES(compartilhamentos), salvamentos = VALUES(salvamentos), atualizado_em = VALUES(atualizado_em)`,
+          [contaId, periodo, m.alcance ?? null, m.visualizacoes ?? null, m.visitasPerfil ?? null, m.interacoes ?? null, m.curtidas ?? null, m.comentarios ?? null, m.compartilhamentos ?? null, m.salvamentos ?? null, agora]);
+        n++;
+      }
+    } catch (e) {
+      erro = mascarar(e instanceof Error ? e.message : "erro");
+      await logIntegracao("instagram", "aviso", "metricas_mes_falhou", `${conta.nome ?? contaId} ${periodo}: ${erro}`);
+    }
+    mes--; if (mes < 1) { mes = 12; ano--; }
+  }
+  return { meses: n, erro };
+}
+
+/** Atualiza agora os dados de todas as contas da rede, sem esperar o agendador. Mostra o erro de cada conta, se houver. */
+export async function sincronizarContaAgora(actor: number, rede: Rede, agora = new Date(), meses = 2): Promise<{ posts: number; meses: number; contas: number; erro?: string }> {
+  await assertCan(actor, "relatorios", "ver");
+  const lista = await contasDaRede(rede, agora);
+  if (!lista.length) return { posts: 0, meses: 0, contas: 0, erro: `${REDE_ROTULO[rede]} não conectada. Conecte em Configurações → Redes sociais.` };
+  let posts = 0, mesesOk = 0; const erros: string[] = [];
+  for (const c of lista) {
+    const r = await sincronizarUmaConta(rede, c.conta, agora, { meses: rede === "instagram" ? meses : 0, forcar: true });
+    posts += r.posts; mesesOk += r.meses;
+    if (r.erro) erros.push(lista.length > 1 ? `${c.rotulo}: ${r.erro}` : r.erro);
+    else if (r.posts === 0) erros.push(`${lista.length > 1 ? c.rotulo + ": " : ""}a ${REDE_ROTULO[rede]} não devolveu nenhum post.`);
+  }
+  return { posts, meses: mesesOk, contas: lista.length, erro: erros.length ? erros.join(" · ") : undefined };
 }
 
 /* ================= Lembretes (geram notificações internas; o push as entrega) ================= */

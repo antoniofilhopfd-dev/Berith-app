@@ -5,6 +5,7 @@ import { permissoesDe } from "@/lib/permissions";
 import * as P from "@/lib/services/publicacoes";
 import { datasDoPeriodo } from "@/lib/services/planejamento";
 import { opcoesProducao } from "@/lib/services/opcoes";
+import { nomesContas } from "@/lib/integracoes/contas";
 import { Calendario, type DiaCal } from "@/components/calendario";
 import { PageHeader, btnSec } from "@/components/ui";
 import { REDES_ATIVAS, STATUS, textoDaRede, type Rede, type Status } from "@/lib/editorial";
@@ -76,7 +77,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
         <button className="min-h-10 rounded-lg bg-verde px-4 text-sm text-white">Filtrar</button>
         {(sp.rede || sp.resp || sp.status) && <Link href={q({ rede: undefined, resp: undefined, status: undefined })} className="text-sm underline">Limpar</Link>}
       </form>
-      <Calendario visao={visao} dias={dias.map((d) => porDia.get(d)!)} hoje={hoje} podeCriar={perms.has("producao:criar")} mover={moverPublicacaoAction} criarRapida={criarRapidaAction} />
+      <Calendario visao={visao} dias={dias.map((d) => porDia.get(d)!)} hoje={hoje} podeCriar={perms.has("producao:criar")} mover={moverPublicacaoAction} criarRapida={criarRapidaAction} contas={await nomesContas()} />
       <p className="mt-3 text-xs text-tinta/60">Datas em destaque (cobre) são sugestões do calendário católico e civil, calculadas automaticamente; confirme no calendário oficial. Datas próprias do ministério são cadastradas em Planejamento.</p>
     </div>
   );

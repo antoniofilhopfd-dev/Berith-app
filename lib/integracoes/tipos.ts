@@ -14,12 +14,18 @@ export type MetricasColetadas = {
 };
 export type MetricasConta = { seguidores?: number | null; alcance?: number | null; visualizacoes?: number | null };
 
+export type MetricasMes = {
+  alcance?: number | null; visualizacoes?: number | null; visitasPerfil?: number | null; interacoes?: number | null;
+  curtidas?: number | null; comentarios?: number | null; compartilhamentos?: number | null; salvamentos?: number | null;
+};
 export type PostExterno = {
-  idExterno: string; tipo: string | null; legenda: string | null; url: string | null; publicadoEm: Date;
+  idExterno: string; tipo: string | null; legenda: string | null; url: string | null; miniatura?: string | null; publicadoEm: Date;
 } & MetricasColetadas;
 
 export type TokensOAuth = { accessToken: string; refreshToken?: string | null; expiraEm?: Date | null; escopos?: string | null };
-export type PerfilConta = { contaExternaId: string; nome: string; meta?: Record<string, string> };
+/** Outra conta (ex.: outra Página com Instagram) vista no mesmo login: só leitura de métricas. */
+export type ContaExtra = { contaExternaId: string; nome: string; token: string; meta?: Record<string, string> };
+export type PerfilConta = { contaExternaId: string; nome: string; meta?: Record<string, string>; extras?: ContaExtra[] };
 
 export interface Provedor {
   rede: Rede;
@@ -36,6 +42,8 @@ export interface Provedor {
   metricasConta(conta: ContaAtiva): Promise<MetricasConta | null>;
   /** Posts recentes da conta inteira (inclusive os publicados fora do app) com suas métricas. */
   listarPostsConta?(conta: ContaAtiva, desde: Date, limite: number): Promise<PostExterno[]>;
+  /** Totais da conta num mês civil (fuso do ministério), lidos da API oficial. Lança erro se a rede recusar tudo. */
+  metricasMes?(conta: ContaAtiva, ano: number, mes: number, agora?: Date): Promise<MetricasMes | null>;
   /** Usa PKCE (code_verifier)? */
   pkce?: boolean;
 }

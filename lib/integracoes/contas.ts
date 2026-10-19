@@ -7,7 +7,7 @@ import { audit } from "@/lib/services/audit";
 import { DomainError } from "@/lib/services/errors";
 import { cifraDisponivel, cifrar, decifrar, mascarar } from "./cripto";
 import { provedor } from "./index";
-import type { ContaAtiva } from "./tipos";
+import type { ContaAtiva, ContaExtra } from "./tipos";
 
 export async function logIntegracao(rede: string | null, nivel: "info" | "aviso" | "erro", evento: string, detalhes?: string | null) {
   try { await execute("INSERT INTO integracao_logs (rede, nivel, evento, detalhes) VALUES (?,?,?,?)", [rede, nivel, evento.slice(0, 60), detalhes ? mascarar(detalhes).slice(0, 600) : null]); }
@@ -30,6 +30,61 @@ export async function statusRedes(actor: number): Promise<StatusRede[]> {
     const estado: StatusRede["estado"] = !p.configurado() ? "app_nao_configurado" : !conta ? "nao_conectada" : conta.status === "conectada" ? "conectada" : conta.status === "expirada" ? "expirada" : "erro";
     return { rede, appConfigurado: p.configurado(), variaveis: p.variaveis(), escopos: p.escopos(), conta, estado };
   });
+}
+
+/** Nome (@usuário) da conta conectada em cada rede, para mostrar nas telas onde a publicação/dados vão ou vêm. */
+export async function nomesContas(): Promise<Partial<Record<Rede, string>>> {
+  const r = await query<RowDataPacket>("SELECT rede, nome_exibicao FROM redes_contas WHERE status = 'conectada' AND nome_exibicao IS NOT NULL");
+  return Object.fromEntries(r.map((x) => [x.rede as Rede, String(x.nome_exibicao)]));
+}
+
+/** Contas do Instagram acompanhadas: a principal (publicação) e as extras (só leitura de métricas). */
+export type ContaInstagram = { igId: string; usuario: string; principal: boolean; status: "conectada" | "expirada" | "erro" };
+export async function contasInstagram(): Promise<ContaInstagram[]> {
+  const [prin] = await query<RowDataPacket>("SELECT conta_externa_id, nome_exibicao, status FROM redes_contas WHERE rede = 'instagram' AND status = 'conectada' AND conta_externa_id IS NOT NULL");
+  const extras = await query<RowDataPacket>("SELECT ig_id, usuario, status FROM instagram_contas ORDER BY usuario");
+  const out: ContaInstagram[] = [];
+  if (prin) out.push({ igId: String(prin.conta_externa_id), usuario: String(prin.nome_exibicao ?? prin.conta_externa_id), principal: true, status: "conectada" });
+  for (const x of extras) if (!out.some((o) => o.igId === x.ig_id)) out.push({ igId: String(x.ig_id), usuario: String(x.usuario), principal: false, status: x.status });
+  return out;
+}
+
+/** Contas do Instagram prontas para ler métricas (principal + extras), com o token decifrado. */
+export async function contasInstagramAtivas(agora = new Date()): Promise<{ igId: string; usuario: string; conta: ContaAtiva }[]> {
+  const lista = await contasInstagram();
+  const out: { igId: string; usuario: string; conta: ContaAtiva }[] = [];
+  for (const c of lista) {
+    if (c.principal) { const ca = await contaAtiva("instagram", agora); if ("conta" in ca) out.push({ igId: c.igId, usuario: c.usuario, conta: ca.conta }); continue; }
+    if (c.status !== "conectada") continue;
+    const r = (await query<RowDataPacket>("SELECT token_enc, page_id FROM instagram_contas WHERE ig_id = ?", [c.igId]))[0];
+    try { out.push({ igId: c.igId, usuario: c.usuario, conta: { rede: "instagram", contaExternaId: c.igId, nome: c.usuario, token: decifrar(String(r.token_enc)), meta: r.page_id ? { pageId: String(r.page_id) } : {} } }); }
+    catch { await logIntegracao("instagram", "erro", "token_ilegivel", `${c.usuario}: verifique TOKEN_ENC_KEY`); }
+  }
+  return out;
+}
+
+async function guardarExtras(actor: number, principalId: string, extras: ContaExtra[]) {
+  for (const x of extras) {
+    if (x.contaExternaId === principalId) continue;
+    await execute(
+      `INSERT INTO instagram_contas (ig_id, usuario, page_id, token_enc, status, ultimo_erro, conectada_em) VALUES (?,?,?,?, 'conectada', NULL, UTC_TIMESTAMP())
+       ON DUPLICATE KEY UPDATE usuario = VALUES(usuario), page_id = VALUES(page_id), token_enc = VALUES(token_enc), status = 'conectada', ultimo_erro = NULL, conectada_em = UTC_TIMESTAMP()`,
+      [x.contaExternaId, x.nome, x.meta?.pageId ?? null, cifrar(x.token)]);
+  }
+  // A conta que virou principal não pode continuar também como extra.
+  await execute("DELETE FROM instagram_contas WHERE ig_id = ?", [principalId]);
+  if (extras.length) await audit(actor, "integracao.contas_extras", { entidade: "rede", entidadeId: "instagram", detalhes: { contas: extras.map((e) => e.nome) } });
+}
+
+/** Remove uma conta extra e os dados importados dela. A conta principal só sai por "Desconectar". */
+export async function removerContaInstagram(actor: number, igId: string) {
+  await assertCan(actor, "integracoes", "gerir");
+  const r = await execute("DELETE FROM instagram_contas WHERE ig_id = ?", [igId]);
+  if (!r.affectedRows) throw new DomainError("Conta não encontrada (a conta principal sai em “Desconectar”).");
+  await execute("DELETE FROM posts_externos WHERE conta_id = ?", [igId]);
+  await execute("DELETE FROM instagram_mensal WHERE conta_id = ?", [igId]);
+  await execute("DELETE FROM metricas_conta WHERE conta_id = ?", [igId]);
+  await audit(actor, "integracao.remover_conta", { entidade: "rede", entidadeId: "instagram", detalhes: { igId } });
 }
 
 /** Redes com conta ativa (para saber se a publicação automática é possível). */
@@ -70,6 +125,7 @@ export async function concluirConexao(actor: number, rede: Rede, state: string, 
        ON DUPLICATE KEY UPDATE nome_exibicao = VALUES(nome_exibicao), conta_externa_id = VALUES(conta_externa_id), status = 'conectada', escopos = VALUES(escopos),
          token_enc = VALUES(token_enc), refresh_enc = VALUES(refresh_enc), expira_em = VALUES(expira_em), meta = VALUES(meta), ultimo_erro = NULL, conectada_por = VALUES(conectada_por), conectada_em = UTC_TIMESTAMP()`,
       [rede, perfil.nome, perfil.contaExternaId, tokens.escopos ?? p.escopos().join(","), cifrar(tokens.accessToken), tokens.refreshToken ? cifrar(tokens.refreshToken) : null, tokens.expiraEm ?? null, JSON.stringify(perfil.meta ?? {}), actor]);
+    if (rede === "instagram") await guardarExtras(actor, perfil.contaExternaId, perfil.extras ?? []);
     await audit(actor, "integracao.conectar", { entidade: "rede", entidadeId: rede, detalhes: { conta: perfil.nome } });
     await logIntegracao(rede, "info", "conectada", `Conta ${perfil.nome} conectada.`);
     return { nome: perfil.nome };
@@ -83,6 +139,7 @@ export async function concluirConexao(actor: number, rede: Rede, state: string, 
 export async function desconectar(actor: number, rede: Rede) {
   await assertCan(actor, "integracoes", "gerir");
   await execute("UPDATE redes_contas SET status = 'desconectada', token_enc = '', refresh_enc = NULL, expira_em = NULL WHERE rede = ?", [rede]);
+  if (rede === "instagram") await execute("DELETE FROM instagram_contas"); // apaga os tokens das contas extras (os dados já importados ficam)
   await audit(actor, "integracao.desconectar", { entidade: "rede", entidadeId: rede });
   await logIntegracao(rede, "info", "desconectada", null);
 }

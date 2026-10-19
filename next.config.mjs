@@ -1,6 +1,6 @@
 /** CSP restritiva em produção. O Next injeta scripts inline de hidratação, então 'unsafe-inline' é necessário sem nonce. */
 const csp = [
-  "default-src 'self'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:", "media-src 'self' blob:",
+  "default-src 'self'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob: https://*.cdninstagram.com https://*.fbcdn.net", "media-src 'self' blob:",
   "font-src 'self' data:", "connect-src 'self'", "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
 ].join("; ");
 

@@ -95,6 +95,43 @@ describe("conexão OAuth", () => {
     await expect(C.iniciarConexao(e.admin, "youtube", "https://app.exemplo.org")).rejects.toThrow(/TOKEN_ENC_KEY/);
     process.env.TOKEN_ENC_KEY = k;
   });
+  it("Instagram com várias contas: extras só leem métricas, tokens cifrados, removem com seus dados", async () => {
+    const prov = (principal: string, extras: string[]): Provedor => ({ ...fake(), rede: "instagram", trocarCodigo: async () => ({
+      tokens: { accessToken: `TOK-${principal}` },
+      perfil: { contaExternaId: principal, nome: `@${principal}`, extras: extras.map((x) => ({ contaExternaId: x, nome: `@${x}`, token: `PAGE-${x}`, meta: { pageId: `pg-${x}` } })) },
+    }) });
+    const conectar = async (principal: string, extras: string[]) => {
+      definirProvedores({ instagram: prov(principal, extras) });
+      const st = await estadoDe(await C.iniciarConexao(e.admin, "instagram", "https://app.exemplo.org"));
+      await C.concluirConexao(e.admin, "instagram", st, "c", "https://app.exemplo.org");
+    };
+    await conectar("111", ["222", "333"]);
+    expect((await C.contasInstagram()).map((c) => [c.igId, c.principal])).toEqual([["111", true], ["222", false], ["333", false]]);
+    const linha = (await query<any>("SELECT token_enc FROM instagram_contas WHERE ig_id = '222'"))[0];
+    expect(linha.token_enc).not.toContain("PAGE-222"); expect(decifrar(linha.token_enc)).toBe("PAGE-222");
+    const ativas = await C.contasInstagramAtivas();
+    expect(ativas.map((c) => [c.igId, c.conta.token])).toEqual([["111", "TOK-111"], ["222", "PAGE-222"], ["333", "PAGE-333"]]);
+    expect(JSON.stringify(await C.statusRedes(e.coord))).not.toMatch(/PAGE-222|TOK-111/); // a tela nunca recebe tokens
+    // dados por conta e remoção
+    await execute("INSERT INTO posts_externos (rede, conta_id, id_externo, publicado_em, coletado_em) VALUES ('instagram','222','p1', NOW(), NOW()), ('instagram','111','p2', NOW(), NOW())");
+    await execute("INSERT INTO instagram_mensal (conta_id, periodo, atualizado_em) VALUES ('222','2026-10', NOW())");
+    await expect(C.removerContaInstagram(e.coord, "222")).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(C.removerContaInstagram(e.admin, "111")).rejects.toThrow(/principal/); // a principal sai por “Desconectar”
+    await C.removerContaInstagram(e.admin, "222");
+    expect((await C.contasInstagram()).map((c) => c.igId)).toEqual(["111", "333"]);
+    expect((await query<any>("SELECT conta_id FROM posts_externos")).map((r: any) => r.conta_id)).toEqual(["111"]);
+    expect((await query<any>("SELECT COUNT(*) n FROM instagram_mensal"))[0].n).toBe(0);
+    // trocar a principal para uma conta que era extra: ela deixa de ser extra
+    await conectar("333", ["111"]);
+    expect((await C.contasInstagram()).map((c) => [c.igId, c.principal])).toEqual([["333", true], ["111", false]]);
+    // desconectar apaga os tokens das extras (os dados importados ficam)
+    await C.desconectar(e.admin, "instagram");
+    expect((await query<any>("SELECT COUNT(*) n FROM instagram_contas"))[0].n).toBe(0);
+    expect((await query<any>("SELECT COUNT(*) n FROM posts_externos"))[0].n).toBe(1);
+    await execute("DELETE FROM redes_contas WHERE rede = 'instagram'");
+    await execute("DELETE FROM posts_externos");
+    definirProvedores({ youtube: fake() });
+  });
   it("fluxo completo: state de uso único, tokens cifrados no banco, status e desconexão", async () => {
     definirProvedores({ youtube: fake() });
     const url = await C.iniciarConexao(e.admin, "youtube", "https://app.exemplo.org/");
@@ -168,6 +205,22 @@ describe("Meta — autorização", () => {
     const troca = reqs.find((q) => q.query.grant_type === "fb_exchange_token")!;
     expect(troca.query.fb_exchange_token).toBe("CURTO"); expect(troca.query.client_secret).toBe("segredo-meta");
   });
+  it("Instagram: outras Páginas do mesmo login com Instagram viram contas extras (só leitura)", async () => {
+    rota = (r) => {
+      if (r.path.endsWith("/oauth/access_token") && r.query.code) return { json: { access_token: "CURTO" } };
+      if (r.path.endsWith("/oauth/access_token")) return { json: { access_token: "LONGO" } };
+      if (r.path.endsWith("/me/accounts")) return { json: { data: [
+        { id: "pgA", name: "A", access_token: "TA", instagram_business_account: { id: "igA", username: "conta_a" } },
+        { id: "pgB", name: "B", access_token: "TB", instagram_business_account: { id: "igB", username: "conta_b" } },
+        { id: "pgC", name: "Sem IG", access_token: "TC" },
+      ] } };
+      if (r.path.endsWith("/igA")) return { json: { username: "conta_a" } };
+      return { status: 404 };
+    };
+    const r = await instagram.trocarCodigo({ code: "C", redirectUri: "https://app/cb" });
+    expect(r.perfil.contaExternaId).toBe("igA");
+    expect(r.perfil.extras).toEqual([{ contaExternaId: "igB", nome: "@conta_b", token: "TB", meta: { pageId: "pgB" } }]);
+  });
   it("Facebook: usa a primeira Página; META_PAGE_ID escolhe outra", async () => {
     contaMeta();
     expect((await facebook.trocarCodigo({ code: "C", redirectUri: "https://app/cb" })).perfil.contaExternaId).toBe("pg1");
@@ -211,6 +264,37 @@ describe("Instagram — posts da conta inteira", () => {
   it("métricas da conta trazem alcance e visualizações do dia quando a rede informa", async () => {
     rota = (r) => (r.path.endsWith("/ig9") ? { json: { followers_count: 500 } } : r.query.metric === "reach" ? { json: { data: [{ total_value: { value: 3000 } }] } } : { status: 400, json: {} });
     expect(await instagram.metricasConta(ig)).toEqual({ seguidores: 500, alcance: 3000 });
+  });
+});
+
+describe("Instagram — métricas do mês", () => {
+  const ig = conta("instagram", { contaExternaId: "ig9" });
+  const dia = (iso: string) => Math.floor(new Date(iso).getTime() / 1000);
+  it("mês de 30 dias vai numa janela; usa o fuso do ministério e lê os totais", async () => {
+    rota = (r) => (r.path.endsWith("/ig9/insights") ? { json: { data: [
+      { name: "reach", total_value: { value: 1000 } }, { name: "views", total_value: { value: 4000 } }, { name: "profile_views", total_value: { value: 70 } },
+      { name: "total_interactions", total_value: { value: 300 } }, { name: "likes", total_value: { value: 200 } }, { name: "saves", total_value: { value: 20 } },
+    ] } } : { status: 404 });
+    const m = await instagram.metricasMes!(ig, 2026, 9, new Date("2026-10-19T12:00:00Z"));
+    expect(m).toEqual({ alcance: 1000, visualizacoes: 4000, visitasPerfil: 70, interacoes: 300, curtidas: 200, salvamentos: 20 });
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0].query).toMatchObject({ metric_type: "total_value", period: "day", since: String(dia("2026-09-01T03:00:00Z")), until: String(dia("2026-10-01T03:00:00Z")) });
+    expect(reqs[0].query.metric).toBe("reach,views,profile_views,total_interactions,likes,comments,shares,saves");
+  });
+  it("mês de 31 dias vai em duas janelas somadas; mês corrente para em 'agora'", async () => {
+    rota = () => ({ json: { data: [{ name: "reach", total_value: { value: 10 } }] } });
+    expect((await instagram.metricasMes!(ig, 2026, 8, new Date("2026-10-19T12:00:00Z")))?.alcance).toBe(20); // 2 janelas × 10
+    expect(reqs).toHaveLength(2);
+    reqs = [];
+    await instagram.metricasMes!(ig, 2026, 10, new Date("2026-10-19T12:00:00Z"));
+    expect(reqs).toHaveLength(1); expect(Number(reqs[0].query.until)).toBe(dia("2026-10-19T12:00:00Z"));
+    expect(await instagram.metricasMes!(ig, 2026, 11, new Date("2026-10-19T12:00:00Z"))).toBeNull(); // mês futuro
+  });
+  it("se a Meta recusa o lote, tenta métrica a métrica; se recusa tudo, lança o erro dela", async () => {
+    rota = (r) => (r.query.metric.includes(",") ? { status: 400, json: { error: { message: "metric views não existe" } } } : r.query.metric === "reach" ? { json: { data: [{ name: "reach", total_value: { value: 5 } }] } } : { status: 400, json: { error: { message: "indisponível" } } });
+    expect(await instagram.metricasMes!(ig, 2026, 9, new Date("2026-10-19T12:00:00Z"))).toEqual({ alcance: 5 });
+    rota = () => ({ status: 400, json: { error: { message: "(#10) Permissão ausente" } } });
+    await expect(instagram.metricasMes!(ig, 2026, 9, new Date("2026-10-19T12:00:00Z"))).rejects.toThrow(/Permissão ausente/);
   });
 });
 

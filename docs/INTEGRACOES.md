@@ -15,9 +15,15 @@ O app usa **somente as APIs oficiais** de cada plataforma. Nada é simulado: sem
 
 O código foi validado contra **servidores simulados** que reproduzem o formato das respostas (36 testes em `tests/integracoes.test.ts`): sequência de chamadas, parâmetros, polling, tratamento de erro, mascaramento de tokens e reconexão. **Isso não substitui um teste real**: nomes de campos, versões e limites das APIs mudam. Faça um teste com uma conta de homologação antes de depender da publicação automática.
 
-## Relatórios: só Instagram, conta inteira
+## Relatório mensal do Instagram (uma ou várias contas)
 
-A tela e as exportações de **Relatórios** mostram apenas o Instagram (`REDES_RELATORIO` em `lib/services/relatorios.ts`). Além das publicações feitas pelo app, o agendador importa a cada ~6 h os **posts da conta inteira** (últimos 90 dias, até 60 posts; tabela `posts_externos`) com alcance, curtidas, comentários, compartilhamentos, salvamentos e visualizações que a Meta informar (o que ela não informar fica em branco). Com isso a tela mostra o **ranking de desempenho** (interações = curtidas + comentários + compartilhamentos + salvamentos), **melhor dia e horário** (só com 8+ posts; indica a confiança) e **formatos**. Testado apenas contra servidor simulado.
+**Relatórios** é o relatório mensal do Instagram: indicadores do mês (seguidores, alcance, visualizações, visitas ao perfil, interações, curtidas, comentários, compartilhamentos, salvamentos, publicações) comparados com o mês anterior, top 5 de publicações por interações (com miniatura), melhor dia/horário, desempenho por formato e a lista de todos os posts do mês. Imprime em A4 ("Salvar como PDF" do navegador) e exporta PDF/Excel.
+
+- **De onde vêm os dados:** API oficial da Meta. Totais do mês em `instagram_mensal` (a Meta limita a 30 dias por consulta; meses de 31 dias somam duas janelas e o alcance somado é aproximado); posts em `posts_externos` (inclusive os feitos fora do app); seguidores em `metricas_conta` (a Meta não entrega o passado: o histórico começa quando o Berith passa a coletar). O que a Meta não informa fica “—”.
+- **Atualização:** o agendador atualiza o mês atual e o anterior a cada hora; os botões **Atualizar dados do Instagram agora** e **Carregar histórico (12 meses)** fazem na hora e mostram o motivo se a Meta recusar.
+- **Várias contas:** ao conectar, todas as Páginas do login que têm Instagram profissional entram como contas acompanhadas (`instagram_contas`, só leitura; token da Página cifrado). A principal (`redes_contas`) é a que recebe publicações. Os relatórios têm seletor de conta e cada conta guarda os próprios dados. Contas extras podem ser removidas em Configurações → Redes sociais (apaga os dados dela).
+- **Redes habilitadas:** só o Instagram (`REDES_ATIVAS` em `lib/editorial.ts`); o código e os dados das demais ficam guardados.
+- Testado apenas contra servidor simulado da Meta.
 
 ## O que você precisa providenciar (ações humanas)
 
