@@ -20,7 +20,7 @@ backups/
 tmp/
 .DS_Store
 # arquivos enviados (privados)
-storage/
+/storage/
 # gerado no prebuild
 lib/db/migrations.generated.ts
 # capturas de tela de verificação ficam versionadas em docs/prints
