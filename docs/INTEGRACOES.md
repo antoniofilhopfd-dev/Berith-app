@@ -11,7 +11,7 @@ O app usa **somente as APIs oficiais** de cada plataforma. Nada é simulado: sem
 | TikTok | OAuth (Login Kit) com renovação | Vídeo por URL (Content Posting API) | visualizações, curtidas, comentários, compartilhamentos, seguidores | **Não** |
 | YouTube | OAuth Google com renovação | Upload resumível de vídeo e Shorts | visualizações, curtidas, comentários, inscritos | **Não** |
 
-O código foi validado contra **servidores simulados** que reproduzem o formato das respostas (35 testes em `tests/integracoes.test.ts`): sequência de chamadas, parâmetros, polling, tratamento de erro, mascaramento de tokens e reconexão. **Isso não substitui um teste real**: nomes de campos, versões e limites das APIs mudam. Faça um teste com uma conta de homologação antes de depender da publicação automática.
+O código foi validado contra **servidores simulados** que reproduzem o formato das respostas (36 testes em `tests/integracoes.test.ts`): sequência de chamadas, parâmetros, polling, tratamento de erro, mascaramento de tokens e reconexão. **Isso não substitui um teste real**: nomes de campos, versões e limites das APIs mudam. Faça um teste com uma conta de homologação antes de depender da publicação automática.
 
 ## O que você precisa providenciar (ações humanas)
 

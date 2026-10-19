@@ -32,7 +32,7 @@ Os testes e2e exigiram corrigir **defeitos reais**, já corrigidos: arrastar do 
 Resumo em `docs/SEGURANCA.md` (23 itens classificados: corrigido / vulnerável / não identificado / não aplicável / não verificável). Único item **vulnerável** aceito: 5 alertas *high* em dependência **de desenvolvimento** (`braces`, via ESLint), fora do runtime.
 
 ## 6. Integrações — o que foi e o que NÃO foi testado
-**Testado:** OAuth (state de uso único, tokens cifrados, renovação), publicação, polling, erros, reconexão, métricas, mascaramento e SSRF — contra **servidores simulados** (37 testes).
+**Testado:** OAuth (state de uso único, tokens cifrados, renovação), publicação, polling, erros, reconexão, métricas, mascaramento e SSRF — contra **servidores simulados** (36 testes).
 **NÃO testado contra as plataformas reais** (sem credenciais): Instagram, Facebook, TikTok, YouTube. Não declare a publicação automática pronta antes de um teste com conta de homologação. Pendências externas (apps, App Review/auditorias, domínio, HTTPS): `docs/INTEGRACOES.md`.
 
 ## 7. Pendências que dependem de você / da Hostinger
