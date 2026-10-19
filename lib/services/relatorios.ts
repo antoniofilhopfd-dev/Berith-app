@@ -56,12 +56,14 @@ export function variacaoPct(atual: number | null | undefined, anterior: number |
   return Math.round(((atual - anterior) / anterior) * 1000) / 10;
 }
 
+/** Só https chega às telas (link/imagem): defesa em profundidade contra valores estranhos vindos da rede. */
+export const soHttps = (u: unknown): string | null => (typeof u === "string" && /^https:\/\/[^\s"'<>]+$/.test(u) ? u : null);
 export const num = (v: unknown) => (v == null ? null : Number(v));
 
 /** Linha de posts_externos → post com interações calculadas. */
 export function postDeLinha(p: RowDataPacket): PostMes {
   const base = { curtidas: num(p.curtidas), comentarios: num(p.comentarios), salvamentos: num(p.salvamentos), compartilhamentos: num(p.compartilhamentos) };
-  return { id: p.id_externo, tipo: p.tipo, legenda: p.legenda, url: p.url, miniatura: p.miniatura, publicado_em: p.publicado_em, alcance: num(p.alcance), visualizacoes: num(p.visualizacoes), ...base, interacoes: interacoesDe(base) };
+  return { id: p.id_externo, tipo: p.tipo, legenda: p.legenda, url: soHttps(p.url), miniatura: soHttps(p.miniatura), publicado_em: p.publicado_em, alcance: num(p.alcance), visualizacoes: num(p.visualizacoes), ...base, interacoes: interacoesDe(base) };
 }
 
 /** Melhor dia da semana e horário (fuso do ministério) pelas interações dos posts reais; só indica com amostra mínima. */

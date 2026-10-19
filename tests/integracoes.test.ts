@@ -530,3 +530,12 @@ describe("Instagram: remover a conta padrão promove a próxima (todas valem igu
     await execute("DELETE FROM redes_contas WHERE rede = 'instagram'"); await execute("DELETE FROM posts_externos");
   });
 });
+
+describe("Instagram — links de posts só https", () => {
+  it("permalink e miniatura estranhos são descartados na importação", async () => {
+    const ig = conta("instagram", { contaExternaId: "ig9" });
+    rota = (r) => (r.path.endsWith("/ig9/media") ? { json: { data: [{ id: "p1", caption: "x", media_type: "IMAGE", permalink: "javascript:alert(1)", thumbnail_url: "http://inseguro/x.jpg", media_url: "data:image/png;base64,AAA", timestamp: "2026-10-15T12:00:00+0000", like_count: 1, comments_count: 0 }] } } : { status: 400, json: {} });
+    const [p] = await instagram.listarPostsConta!(ig, new Date("2026-07-01T00:00:00Z"), 10);
+    expect(p.url).toBeNull(); expect(p.miniatura).toBeNull();
+  });
+});

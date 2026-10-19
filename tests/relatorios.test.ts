@@ -102,3 +102,11 @@ describe("exportações do relatório mensal", () => {
     expect(Buffer.from(pdf.slice(0, 4)).toString()).toBe("%PDF");
   });
 });
+
+describe("links e imagens vindos da rede (defesa em profundidade)", () => {
+  it("só https chega às telas: javascript:, data: e http viram nulo", async () => {
+    const { soHttps } = await import("@/lib/services/relatorios");
+    expect(soHttps("https://www.instagram.com/p/abc/")).toBe("https://www.instagram.com/p/abc/");
+    for (const ruim of ["javascript:alert(1)", "data:text/html,<script>", "http://x.com/a", "//x.com/a", "https://x.com/a b", "https://x.com/\"onload=", null, undefined, 5]) expect(soHttps(ruim)).toBeNull();
+  });
+});
