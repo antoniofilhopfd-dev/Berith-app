@@ -20,7 +20,7 @@ export default async function ConfigLayout({ children }: { children: React.React
   return (
     <div>
       <PageHeader titulo="Configurações" />
-      <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
         <ConfigNav itens={itens} />
         <div className="min-w-0 space-y-5">{children}</div>
       </div>

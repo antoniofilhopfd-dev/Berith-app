@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 export function ConfigNav({ itens }: { itens: { href: string; rotulo: string }[] }) {
   const path = usePathname();
   return (
-    <nav aria-label="Configurações" className="lg:sticky lg:top-4 lg:self-start">
+    <nav aria-label="Configurações" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
       <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
         {itens.map((i) => (
           <li key={i.href} className="shrink-0"><Link href={i.href} aria-current={path === i.href ? "page" : undefined}

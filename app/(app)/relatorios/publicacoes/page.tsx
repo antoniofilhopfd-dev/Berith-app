@@ -54,16 +54,16 @@ export default async function Publicacoes({ searchParams }: { searchParams: Prom
       )}
 
       {d.posts.length === 0 ? <Card><Empty>Nenhuma publicação neste período. Use “Atualizar dados do Instagram agora” na Visão geral.</Empty></Card> : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+        <ul className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
           {d.posts.map((p) => (
             <li key={p.id} className="overflow-hidden rounded-xl border border-borda bg-cartao">
               <a href={p.url ?? undefined} target="_blank" rel="noopener noreferrer" aria-label={`Abrir publicação de ${dataBr(p.publicado_em)} no Instagram`} className="block">
                 {p.miniatura /* eslint-disable-next-line @next/next/no-img-element */ ? <img src={p.miniatura} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-square w-full object-cover" /> : <span className="flex aspect-square w-full items-center justify-center bg-borda/40 text-xs text-tinta/50">sem imagem</span>}
               </a>
-              <div className="p-3 text-xs">
+              <div className="p-2 text-xs sm:p-3">
                 <p className="flex justify-between font-semibold uppercase text-tinta/60"><span>{p.formato}</span><span>{dataBr(p.publicado_em)}</span></p>
-                <p className="mt-1 line-clamp-3 min-h-[3.6em] text-sm">{p.legenda ?? "Sem legenda"}</p>
-                <dl className="mt-2 grid grid-cols-3 gap-x-2 gap-y-1">
+                <p className="mt-1 line-clamp-3 min-h-[3.6em] text-xs sm:text-sm">{p.legenda ?? "Sem legenda"}</p>
+                <dl className="mt-2 grid grid-cols-3 gap-x-1 gap-y-1">
                   <div><dd className="font-semibold">{valor(p.curtidas)}</dd><dt className="text-[10px] text-tinta/60">Curtidas</dt></div>
                   <div><dd className="font-semibold">{valor(p.comentarios)}</dd><dt className="text-[10px] text-tinta/60">Coment.</dt></div>
                   <div><dd className="font-semibold">{valor(p.salvamentos)}</dd><dt className="text-[10px] text-tinta/60">Salvos</dt></div>

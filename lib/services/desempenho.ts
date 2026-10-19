@@ -105,7 +105,7 @@ export async function gerarDesempenho(actor: number, janelaPedida: string | unde
   const todos = linhasPosts.map(postDeLinha);
   const dataLocal = (p: PostMes) => utcToLocal(new Date(p.publicado_em)).date;
   const doPeriodo = todos.filter((p) => { const d = dataLocal(p); return d >= de && d <= fimJanela; });
-  const rotuloFormato = (p: PostMes) => (p.tipo === "REELS" ? "Reels" : p.tipo === "CAROUSEL_ALBUM" ? "Carrossel" : "Feed (imagem/vídeo)");
+  const rotuloFormato = (p: PostMes) => (p.tipo === "REELS" ? "Reels" : p.tipo === "CAROUSEL_ALBUM" ? "Carrossel" : "Feed");
   const porFormato = new Map<string, number[]>();
   for (const p of doPeriodo) { const t = rotuloFormato(p); (porFormato.get(t) ?? porFormato.set(t, []).get(t)!).push(p.interacoes); }
   const mix: FormatoDesempenho[] = [...porFormato.entries()].map(([tipo, v]) => ({ tipo, posts: v.length, pct: Math.round((v.length / doPeriodo.length) * 100), mediaInteracoes: Math.round(v.reduce((a, b) => a + b, 0) / v.length) })).sort((a, b) => b.posts - a.posts);
