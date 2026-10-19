@@ -1,7 +1,10 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { execute, query, tx } from "@/lib/db";
 import { assertCan, PERFIS, type Perfil } from "@/lib/permissions";
+import { randomBytes } from "node:crypto";
 import { hashPassword } from "@/lib/auth/password";
+import { gerarCodigo, hmacCodigo, validarCodigoEscolhido } from "@/lib/auth/codigo";
+import { cifraDisponivel, cifrar } from "@/lib/integracoes/cripto";
 import { audit } from "./audit";
 import { DomainError, NotFoundError } from "./errors";
 import { hashToken, newToken } from "./tokens";
@@ -80,6 +83,37 @@ export async function alterarSituacao(actor: number, userId: number, status: "at
   await execute("UPDATE users SET status = ? WHERE id = ? AND status <> 'pendente'", [status, userId]);
   if (status === "suspenso") await execute("UPDATE sessions SET revogada_em = UTC_TIMESTAMP() WHERE user_id = ? AND revogada_em IS NULL", [userId]);
   await audit(actor, `equipe.${status === "ativo" ? "reativar" : "suspender"}`, { entidade: "user", entidadeId: userId });
+}
+
+/* -------- Pessoa com código de acesso (sem e-mail/senha) -------- */
+/** E-mail interno de quem entra só por código (a coluna é obrigatória e única; nunca é exibido nem recebe mensagens). */
+export const SUFIXO_SEM_EMAIL = "@sem-email.invalid";
+export const emailParaExibir = (email: string | null | undefined) => (email && !email.endsWith(SUFIXO_SEM_EMAIL) ? email : null);
+
+/** Cria a pessoa já ativa, com função e código de acesso (escolhido ou gerado). O código é devolvido uma única vez. */
+export async function adicionarPessoa(actor: number, d: { nome: string; perfil: Perfil; codigo?: string | null }): Promise<{ id: number; nome: string; codigo: string }> {
+  await assertCan(actor, "equipe", "gerir");
+  const nome = d.nome.trim();
+  if (nome.length < 2 || nome.length > 150) throw new DomainError("Informe o nome (2 a 150 caracteres).");
+  if (!perfilValido(d.perfil)) throw new DomainError("Função inexistente.");
+  let codigo: string;
+  if (d.codigo && d.codigo.trim()) {
+    codigo = validarCodigoEscolhido(d.codigo);
+    if ((await query<RowDataPacket>("SELECT 1 x FROM users WHERE acesso_hmac = ?", [hmacCodigo(codigo)])).length) throw new DomainError("Esse código já está em uso por outra pessoa. Escolha outro ou deixe em branco para gerar.");
+  } else {
+    do { codigo = gerarCodigo(); } while ((await query<RowDataPacket>("SELECT 1 x FROM users WHERE acesso_hmac = ?", [hmacCodigo(codigo)])).length);
+  }
+  const email = `pessoa-${randomBytes(8).toString("hex")}${SUFIXO_SEM_EMAIL}`;
+  const id = await tx(async (c) => {
+    const [u] = await c.query<ResultSetHeader>(
+      "INSERT INTO users (nome, email, senha_hash, status, acesso_hmac, acesso_enc, acesso_gerado_em) VALUES (?, ?, '!', 'ativo', ?, ?, UTC_TIMESTAMP())",
+      [nome, email, hmacCodigo(codigo), cifraDisponivel() ? cifrar(codigo) : null]);
+    await c.query("INSERT IGNORE INTO member_profiles (user_id) VALUES (?)", [u.insertId]);
+    await c.query("INSERT IGNORE INTO user_roles (user_id, role_id, scope_unit_id, scope_unit_id_key) SELECT ?, id, NULL, 0 FROM roles WHERE codigo = ?", [u.insertId, d.perfil]);
+    return u.insertId;
+  });
+  await audit(actor, "equipe.pessoa_adicionada", { entidade: "user", entidadeId: id, detalhes: { perfil: d.perfil } });
+  return { id, nome, codigo };
 }
 
 /* -------- Convites e aprovação -------- */

@@ -169,3 +169,33 @@ describe("LGPD pela tela de equipe", () => {
     await expect(anonimizarPessoa(e.coord, e.admin)).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
+
+describe("adicionar pessoa só com nome, função e código", () => {
+  it("cria a pessoa ativa, com a função e o código (gerado ou escolhido); entra só por código; sem e-mail nem senha", async () => {
+    const { adicionarPessoa, emailParaExibir, SUFIXO_SEM_EMAIL } = await import("@/lib/services/equipe");
+    const { authenticate } = await import("@/lib/auth/login");
+    const { permissoesDe } = await import("@/lib/permissions");
+    const a = await adicionarPessoa(e.admin, { nome: "  Maria da Silva ", perfil: "integrante" });
+    expect(a.nome).toBe("Maria da Silva"); expect(a.codigo).toMatch(/^[A-HJ-NP-Z]{2}\d{4}$/);
+    const u = (await query<any>("SELECT nome, email, status, senha_hash FROM users WHERE id = ?", [a.id]))[0];
+    expect(u).toMatchObject({ nome: "Maria da Silva", status: "ativo", senha_hash: "!" });
+    expect(u.email.endsWith(SUFIXO_SEM_EMAIL)).toBe(true); expect(emailParaExibir(u.email)).toBeNull(); expect(emailParaExibir("a@b.com")).toBe("a@b.com");
+    expect((await permissoesDe(a.id)).has("producao:ver")).toBe(true);
+    expect(await autenticarCodigo(a.codigo.toLowerCase(), "10.3.3.3", semEspera)).toEqual({ ok: true, userId: a.id });
+    expect((await codigosVisiveis(e.admin)).get(a.id)).toBe(a.codigo); // visível em Equipe
+    expect(await authenticate(u.email, "qualquer-senha-123", "10.3.3.4")).toMatchObject({ ok: false }); // senha nunca entra
+    const b = await adicionarPessoa(e.admin, { nome: "João Pedro", perfil: "coordenador", codigo: "jp4821" });
+    expect(b.codigo).toBe("JP4821"); expect(await autenticarCodigo("JP-4821", "10.3.3.5", semEspera)).toEqual({ ok: true, userId: b.id });
+    expect((await query<any>("SELECT email FROM users WHERE id IN (?, ?)", [a.id, b.id])).map((r: any) => r.email)).toHaveLength(2); // e-mails internos distintos
+  });
+  it("valida nome, função e código; código repetido não cria ninguém; só quem gerencia a equipe adiciona", async () => {
+    const { adicionarPessoa } = await import("@/lib/services/equipe");
+    const antes = Number((await query<any>("SELECT COUNT(*) n FROM users"))[0].n);
+    await expect(adicionarPessoa(e.admin, { nome: "A", perfil: "integrante" })).rejects.toBeInstanceOf(DomainError);
+    await expect(adicionarPessoa(e.admin, { nome: "Fulano", perfil: "chefe" as any })).rejects.toBeInstanceOf(DomainError);
+    await expect(adicionarPessoa(e.admin, { nome: "Fulano", perfil: "integrante", codigo: "abc" })).rejects.toBeInstanceOf(DomainError);
+    await expect(adicionarPessoa(e.admin, { nome: "Fulano", perfil: "integrante", codigo: "JP4821" })).rejects.toThrow(/já está em uso/);
+    await expect(adicionarPessoa(e.integ, { nome: "Fulano", perfil: "integrante" })).rejects.toBeInstanceOf(ForbiddenError);
+    expect(Number((await query<any>("SELECT COUNT(*) n FROM users"))[0].n)).toBe(antes);
+  });
+});

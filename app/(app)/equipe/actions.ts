@@ -20,6 +20,12 @@ export const convidarAction = guarded(async (u, f) => {
   try { await sendMail(d.email, "Convite — Berith, Ministério de Comunicação", `Olá, ${d.nome}!\n\nVocê foi convidado(a) para o aplicativo do Ministério de Comunicação da Nova Berith.\nCrie sua senha em (válido por 7 dias):\n${link}`); enviado = true; } catch { /* sem SMTP: o link é mostrado ao administrador */ }
   return { ok: enviado ? "Convite enviado por e-mail. O link também está abaixo, caso precise reenviar." : "Convite criado. O envio por e-mail não está configurado: entregue o link abaixo por um canal seguro.", link };
 }, ["/equipe"]);
+export const adicionarPessoaAction = guarded(async (u, f) => {
+  const d = z.object({ nome: z.string().trim().min(2, "Informe o nome").max(150), perfil: z.enum(PERFIS, { message: "Escolha a função" }), codigo: z.string().trim().max(20).optional() })
+    .parse({ nome: f.get("nome"), perfil: f.get("perfil"), codigo: f.get("codigo") ?? undefined });
+  const r = await E.adicionarPessoa(u.id, d);
+  return { ok: `${r.nome} foi adicionado(a). O acesso é só por código: entregue o código abaixo por um canal seguro.`, segredo: r.codigo };
+}, ["/equipe"]);
 export const aprovarAction = guarded(async (u, f) => { await E.aprovarPessoa(u.id, id.parse(f.get("id"))); return { ok: "Pessoa aprovada." }; }, ["/equipe"]);
 export const rejeitarAction = guarded(async (u, f) => { await E.rejeitarPessoa(u.id, id.parse(f.get("id"))); return { ok: "Cadastro recusado." }; }, ["/equipe"]);
 export const perfilEquipeAction = guarded(async (u, f) => {
