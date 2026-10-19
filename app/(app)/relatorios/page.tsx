@@ -24,10 +24,10 @@ const Delta = ({ v, sufixo = "vs. período anterior" }: { v: number | null; sufi
 
 function Kpi({ rotulo, valor, sub, delta }: { rotulo: string; valor: string; sub?: string; delta?: number | null }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-borda bg-cartao p-4 pl-5">
+    <div className="relative overflow-hidden rounded-xl border border-borda bg-cartao p-3 pl-4 sm:p-4 sm:pl-5">
       <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: "linear-gradient(180deg,#c13584,#f77737)" }} />
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-tinta/60">{rotulo}</p>
-      <p className="mt-1 text-2xl font-semibold text-verde-escuro">{valor}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-tinta/60 sm:text-[11px]">{rotulo}</p>
+      <p className="mt-1 text-xl font-semibold text-verde-escuro sm:text-2xl">{valor}</p>
       {sub && <small className="mt-1 block text-xs text-tinta/60">{sub}</small>}
       <Delta v={delta ?? null} />
     </div>
@@ -45,7 +45,7 @@ function Painel({ d }: { d: Desempenho }) {
       {semTotais && (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Ainda não há totais da Meta para {d.rotulo.toLowerCase() === "todo" ? "este período" : `os últimos ${d.rotulo}`}. Use <strong>Atualizar dados do Instagram agora</strong>{d.janela === "ano" || d.janela === "todo" ? " e depois " : ""}{d.janela === "ano" || d.janela === "todo" ? <strong>Carregar histórico</strong> : null}.</p>
       )}
-      <section aria-label="Indicadores" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section aria-label="Indicadores" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Kpi rotulo="Seguidores" valor={n(d.seguidores.fim)} sub={d.seguidores.noPeriodo != null ? `${d.seguidores.noPeriodo >= 0 ? "+" : ""}${formatNumber(d.seguidores.noPeriodo)} no período` : "histórico começa na primeira coleta"} />
         <Kpi rotulo="Alcance" valor={n(a?.alcance)} delta={v("alcance")} />
         <Kpi rotulo="Impressões (visualizações)" valor={n(a?.visualizacoes)} delta={v("visualizacoes")} />
@@ -139,8 +139,8 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-5">
       <header className="relative overflow-hidden rounded-2xl border border-borda bg-cartao p-5">
-        <div aria-hidden className="absolute right-4 top-4 h-14 w-14 rounded-2xl" style={{ background: GRADIENTE_IG }} />
-        <h1 className="font-titulo text-2xl text-verde-escuro">Desempenho e conteúdo</h1>
+        <div aria-hidden className="absolute right-4 top-4 hidden h-14 w-14 rounded-2xl sm:block" style={{ background: GRADIENTE_IG }} />
+        <h1 className="font-titulo text-2xl text-verde-escuro sm:pr-20">Desempenho e conteúdo</h1>
         <p className="mt-1 max-w-2xl text-sm text-tinta/70">Crescimento, alcance, interação e formatos em uma visão própria de social media. Métricas sincronizadas automaticamente da API do Instagram{d.atualizadoEm ? ` (última: ${formatDateTime(d.atualizadoEm)})` : ""}.</p>
         <div className="mt-3"><RelNav atual="geral" conta={d.contas.length > 1 ? d.contaId : null} /></div>
         <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -58,7 +58,7 @@ describe("painel de desempenho", () => {
   it("mix de formatos, ranking e interações vêm dos posts reais do período", async () => {
     const d = await gerarDesempenho(e.coord, "30", undefined, AGORA);
     expect(d.postsNoPeriodo).toBe(4); expect(d.reels).toBe(1);
-    expect(d.mix.map((f) => [f.tipo, f.posts, f.pct])).toEqual([["Feed (imagem/vídeo)", 2, 50], ["Reels", 1, 25], ["Carrossel", 1, 25]]);
+    expect(d.mix.map((f) => [f.tipo, f.posts, f.pct])).toEqual([["Feed", 2, 50], ["Reels", 1, 25], ["Carrossel", 1, 25]]);
     expect(d.ranking.map((p) => [p.id, p.interacoes])).toEqual([["reel1", 110], ["car1", 33], ["feed1", 22], ["feed2", 5]]); // "velho" (agosto) fica de fora
   });
   it("7 dias sem totais da Meta ainda: vazio, nunca inventado", async () => {
