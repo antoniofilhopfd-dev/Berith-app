@@ -6,7 +6,8 @@
 | `npm run verificar` | Checa ambiente de produção (segredos, banco, migrações, arquivos). |
 | `npm run admin:criar -- email "Nome"` | Cria administrador (precisa de terminal; senha via `ADMIN_SENHA`). |
 | `npm run admin:sql -- email "Nome"` | Gera SQL do administrador para executar no phpMyAdmin. |
-| `npm run manutencao` | Retenção/descarte diário (sessões, tentativas de login, tokens e notificações vencidos). |
+| `npm run manutencao` | Retenção/descarte diário (sessões, tentativas de login, tokens, notificações, logs de integração e mídias na lixeira há mais de 30 dias). |
+| `npm run limpar:legado` | Lista as tabelas da antiga versão comunitária (nada é alterado). `-- --apagar-vazias` remove só as vazias; `-- --apagar-tudo --confirmo-backup` remove todas (**irreversível**; em produção exige também `PERMITIR_APAGAR_LEGADO=sim`). Faça e confira o backup antes. |
 | `npm run lgpd -- exportar email` | Exporta os dados pessoais de uma pessoa (direito de acesso). |
 | `npm run lgpd -- anonimizar email --confirmo` | Remove identificação e dados de uso (irreversível). |
 | `npm run gerar:segredo` / `gerar:vapid` | Gera segredos / chaves de Web Push (não grava arquivos). |
@@ -27,28 +28,28 @@
 6. Em último caso, restaure o backup (abaixo) e reaplique.
 
 ## Backup e restauração
-**O que protege:** banco (todas as tabelas, inclusive financeiro e auditoria) e arquivos privados (`STORAGE_DIR`).
+**O que protege:** banco (todas as tabelas, inclusive tokens cifrados e auditoria) e arquivos privados (`STORAGE_DIR`).
 - **Frequência sugerida:** diário (noite). **Retenção:** 30 dias (`RETENCAO_DIAS`); mantenha ao menos 1 backup mensal por 12 meses fora do servidor.
-- **Execução:** `scripts/backup.sh` (usa `mysqldump --single-transaction`; a senha vai por `MYSQL_PWD`). Gera `nb-<data>.sql.gz`, `.arquivos.tar.gz`, `.manifesto.txt` (contagens e saldo) e `.sha256`.
+- **Execução:** `scripts/backup.sh` (usa `mysqldump --single-transaction`; a senha vai por `MYSQL_PWD`). Gera `nb-<data>.sql.gz`, `.arquivos.tar.gz`, `.manifesto.txt` (contagens) e `.sha256`.
 - **Armazenamento protegido:** `BACKUP_DIR` com permissão 700, **fora** da pasta pública, e cópia periódica para outro local (outro provedor/computador). Defina `BACKUP_GPG_RECIPIENT` para criptografar com GPG antes de copiar.
-- **Restauração (teste):** `scripts/restaurar.sh nb-<data>` → restaura em um banco de **teste** (`<DB_NAME>_restauracao_teste`), confere checksums, contagens e saldo contra o manifesto e retorna erro se algo divergir. **Não toca na produção.**
+- **Restauração (teste):** `scripts/restaurar.sh nb-<data>` → restaura em um banco de **teste** (`<DB_NAME>_restauracao_teste`), confere checksums e contagens contra o manifesto e retorna erro se algo divergir. **Não toca na produção.**
 - **Restauração em produção:** `scripts/restaurar.sh nb-<data> --producao-confirmo` (substitui os dados atuais!). Pare o app antes e faça um backup do estado atual.
 - **Arquivos enviados:** o `.arquivos.tar.gz` é extraído para `STORAGE_DIR` (em teste, para uma pasta temporária).
 - **Backup só é confiável depois de testar a restauração.** Faça esse teste ao configurar e **a cada trimestre**.
 
-> Estado da validação: o procedimento foi testado em MariaDB 10.11 **no ambiente de desenvolvimento** (backup → dano proposital → restauração em banco de teste → contagens e saldo conferidos; adulteração do arquivo detectada e restauração abortada).
+> Estado da validação: o procedimento foi testado em MariaDB 10.11 **no ambiente de desenvolvimento, com o esquema atual** (backup → restauração em banco de teste → contagens conferidas; adulteração do arquivo detectada e restauração abortada). **A chave `TOKEN_ENC_KEY` não faz parte do backup**: guarde-a separadamente, ou as redes precisarão ser reconectadas após uma restauração.
 > **Falta repetir o teste na Hostinger** (disponibilidade de `mysqldump`/terminal e agendamento).
 
 ## Retenção de dados (LGPD)
 | Dado | Retenção | Como |
 |---|---|---|
-| Sessões expiradas/revogadas | 30 dias | `npm run manutencao` (agende diariamente) |
-| Tentativas de login | 30 dias | idem |
-| Tokens de senha usados/expirados e convites vencidos | 30 dias | idem |
+| Sessões expiradas/revogadas, tentativas de login, tokens de senha usados/expirados, convites vencidos | 30 dias | `npm run manutencao` (agende diariamente) |
 | Notificações lidas | 180 dias | idem |
 | Entregas de push | 90 dias | idem |
-| **Lançamentos financeiros e auditoria** | **mantidos** (obrigação legal/fiscal; **confirmar prazo com a contabilidade**, em geral 5 anos) | não são descartados automaticamente |
-Pedidos de titulares: `npm run lgpd -- exportar|anonimizar`. A anonimização remove nome, e-mail, perfil, vínculos ativos, sessões, dispositivos e preferências; preserva os registros financeiros e a auditoria **sem identificar** a pessoa.
+| Logs de integração | 180 dias | idem |
+| Mídias removidas (lixeira) | 30 dias, depois apagadas de vez (arquivo e registro) | idem |
+| **Auditoria, publicações, comentários, aprovações e histórico** | **mantidos** (registro editorial e de responsabilidade; **defina o prazo com a coordenação/assessoria jurídica**) | não são descartados automaticamente |
+Pedidos de titulares: `npm run lgpd -- exportar|anonimizar`. A anonimização remove nome, e-mail, perfil, perfis de acesso, sessões, dispositivos e preferências; preserva o histórico editorial e a auditoria **sem identificar** a pessoa.
 
 ## Segredos
 - Troca de `SESSION_SECRET`: encerra todas as sessões (todos precisarão entrar de novo). Troque se houver suspeita de vazamento.
@@ -56,14 +57,9 @@ Pedidos de titulares: `npm run lgpd -- exportar|anonimizar`. A anonimização re
 - Senha do banco: troque no painel e no `DB_PASSWORD`; reinicie.
 
 ## Incidentes: onde olhar
-- `audit_log`: logins (`login.sucesso/falha/bloqueado`), financeiro (`financeiro.*`), arquivos (`arquivo.*`), permissões (`papel.*`), LGPD (`lgpd.*`).
-- Suspender uma pessoa: tela do membro → "Suspender acesso" (encerra as sessões na hora). Reabrir período financeiro exige administração e fica registrado.
-- Financeiro: aprovação por **duas pessoas** (configuração `financeiro_aprovacao_dupla` em `settings`; só desligue se houver um único responsável).
-
-## Importação automática de liturgia
-
-- Configuração em `/liturgia` (quem pode editar liturgia): nome da fonte, endereço com `{data}`/`{dd}`/`{mm}`/`{aaaa}`, mapeamento JSON de caminhos (tipos: primeira_leitura, salmo, segunda_leitura, evangelho, santo, invitatorio, oficio_leituras, laudes, hora_media, vesperas, completas).
-- Use “Testar” (não grava) antes de ativar. “Importar agora” força uma execução; a automática roda na chamada do cron (`POST /api/push/enviar`), no máximo a cada 6 h.
-- O resultado fica em “última execução”/status e na auditoria (`liturgia.importar`). Falha da fonte não afeta o restante do cron.
-
-> **Liturgia desativada por enquanto.** O menu, o cartão da tela inicial, a página `/liturgia` (404) e a importação no cron ficam ocultos até `LITURGIA_ATIVA=1`. Código, tabelas e dados são preservados; basta definir a variável e reiniciar para religar.
+- **Configurações → Logs e auditoria** (`audit_log`): logins (`login.*`), publicações (`publicacao.*`), mídia (`midia.*`), equipe (`equipe.*`, `convite.*`), integrações (`integracao.*`), relatórios exportados (`relatorio.exportar`), LGPD (`lgpd.*`).
+- **Configurações → Redes sociais** mostra o estado de cada conexão e o registro de integração (sem segredos).
+- **Publicações → Falhas**: erro, tentativas e reprocessamento. Se a mensagem disser que o resultado é **incerto**, confira na rede social antes de reprocessar (evita postagem duplicada).
+- Suspender uma pessoa: **Equipe → Suspender** (encerra as sessões na hora). Cada pessoa também pode encerrar seus dispositivos em Configurações → Segurança.
+- Rede com acesso revogado/expirado: reconecte em Configurações → Redes sociais. Enquanto isso, use a publicação assistida.
+- O agendador parou? Configurações → Configurações gerais mostra a última execução do cron.

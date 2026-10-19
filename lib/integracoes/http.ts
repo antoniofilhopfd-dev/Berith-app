@@ -25,3 +25,15 @@ export function erroPlataforma(json: unknown, texto: string, status: number): st
   const m = str(e.message) ?? str(j.error_description) ?? (typeof j.error === "string" ? j.error : null) ?? str(obj(obj(j.error).errors).message) ?? texto.slice(0, 200);
   return mascarar(`HTTP ${status}: ${m}`).slice(0, 400);
 }
+
+/**
+ * Defesa contra SSRF em URLs devolvidas pelas plataformas (upload resumível, etc.): exige HTTPS e um domínio da própria
+ * plataforma. Quando a base da API é redefinida por variável de ambiente (testes/homologação), a checagem é dispensada.
+ */
+export function urlDaPlataformaValida(url: string, sufixos: string[], baseRedefinida: boolean): boolean {
+  if (baseRedefinida) return true;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && !u.username && !u.password && sufixos.some((s) => u.hostname === s || u.hostname.endsWith("." + s));
+  } catch { return false; }
+}

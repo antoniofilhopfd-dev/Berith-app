@@ -383,6 +383,15 @@ describe("YouTube — publicação", () => {
   });
 });
 
+describe("defesa contra SSRF em URLs devolvidas pela plataforma", () => {
+  it("aceita só HTTPS em domínio da plataforma, sem credenciais embutidas", async () => {
+    const { urlDaPlataformaValida: ok } = await import("@/lib/integracoes/http");
+    expect(ok("https://rupload.facebook.com/x", ["facebook.com"], false)).toBe(true);
+    for (const u of ["http://rupload.facebook.com/x", "https://facebook.com.evil.example/x", "https://evil.example/facebook.com", "https://user:pw@rupload.facebook.com/x", "https://169.254.169.254/latest", "file:///etc/passwd", "lixo"]) expect(ok(u, ["facebook.com"], false), u).toBe(false);
+    expect(ok("http://127.0.0.1:9/x", ["facebook.com"], true)).toBe(true); // base redefinida (homologação)
+  });
+});
+
 describe("registro de provedores", () => {
   it("cada rede tem seu provedor e declara as variáveis exigidas", () => {
     definirProvedores(null);

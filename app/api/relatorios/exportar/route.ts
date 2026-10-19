@@ -8,6 +8,7 @@ import { paraPdf, paraPlanilhas } from "@/lib/export/relatorio";
 import { lerConfig } from "@/lib/services/configuracoes";
 import { audit } from "@/lib/services/audit";
 import { DomainError } from "@/lib/services/errors";
+import { limitar } from "@/lib/auth/limite";
 
 export const dynamic = "force-dynamic";
 const h = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
@@ -16,6 +17,8 @@ const h = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nos
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return new NextResponse("Não autenticado", { status: 401, headers: h });
+  const lim = limitar(`exportar:${user.id}`, 20, 10 * 60_000);
+  if (!lim.ok) return new NextResponse("Muitas exportações em pouco tempo.", { status: 429, headers: { ...h, "Retry-After": String(lim.esperarSeg) } });
   const p = req.nextUrl.searchParams;
   const formato = p.get("formato") === "xlsx" ? "xlsx" : "pdf";
   try {

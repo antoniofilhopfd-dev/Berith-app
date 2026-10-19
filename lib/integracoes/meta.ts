@@ -1,5 +1,5 @@
 import type { Formato, Rede } from "@/lib/editorial";
-import { chamar, erroPlataforma, num, obj, str } from "./http";
+import { chamar, erroPlataforma, num, obj, str, urlDaPlataformaValida } from "./http";
 import type { ConteudoPublicar, ContaAtiva, MetricasColetadas, MetricasConta, Provedor, ResultadoPublicacao, TokensOAuth, PerfilConta } from "./tipos";
 
 /** Meta (Instagram e Facebook) — Graph API oficial. Versão e bases configuráveis por ambiente. */
@@ -189,6 +189,7 @@ async function publicarFacebook(conta: ContaAtiva, c: ConteudoPublicar): Promise
     const ini = await post(`/${page}/video_reels`, t, { upload_phase: "start" });
     const vid = str(obj(ini.json).video_id), up = str(obj(ini.json).upload_url);
     if (ini.status !== 200 || !vid || !up) return falha(ini);
+    if (!urlDaPlataformaValida(up, ["facebook.com", "fbcdn.net", "facebook.net"], Boolean(process.env.META_GRAPH_BASE))) return { ok: false, erro: "A plataforma devolveu um endereço de envio inesperado; a publicação foi interrompida por segurança.", definitivo: true };
     const envio = await chamar(up, { method: "POST", headers: { Authorization: `OAuth ${t}`, file_url: video.url } });
     if (envio.status !== 200) return falha(envio);
     const fim = await post(`/${page}/video_reels`, t, { upload_phase: "finish", video_id: vid, video_state: "PUBLISHED", description: c.texto });

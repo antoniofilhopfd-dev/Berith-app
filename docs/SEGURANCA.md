@@ -1,65 +1,60 @@
-# Segurança — modelo, evidências e riscos residuais
+# Segurança — modelo, controles e auditoria
 
-## Camadas (nenhuma depende só do `proxy.ts`)
-1. **`proxy.ts`**: primeira barreira — apenas redireciona quem não tem cookie. Não decide permissão.
-2. **Páginas/layouts**: `requireUser()` valida a sessão **no banco a cada requisição** (revogar/suspender vale na hora).
-3. **Server Actions** (`guarded()`): sessão + conversão segura de erros; **a autorização fina fica no serviço**.
-4. **Serviços** (`lib/services/*`): `assertCan(usuário, recurso, ação, estrutura)` antes de qualquer leitura/escrita; consultas filtradas por escopo no SQL.
-5. **Route Handlers** (`/api/arquivos`, exportações, push): sessão + permissão no contexto + verificação de origem em mutações.
-6. **Banco**: chaves estrangeiras, `UNIQUE` (dupla confirmação, duplo estorno, duplicidade de notificação/entrega), `CHECK` (valor > 0), transações.
+> Nunca declaramos o sistema “completamente seguro”. Este documento separa o que foi **verificado por teste executado** do que é **risco residual** ou **não verificável** no ambiente de desenvolvimento.
 
-## Controle de acesso
-- RBAC com **escopo organizacional** e **negação por padrão** (`lib/permissions`): papel com escopo vale na estrutura e **descendentes**, nunca nas irmãs/pai; papéis globais exigem `scope NULL`.
-- Integrante comum só **vê** (lista restrita de recursos) a própria estrutura; **financeiro e contribuições individuais nunca** vêm de vínculo organizacional.
-- Acesso a recurso de outra estrutura por URL/ID devolve **404** (não revela existência).
-- Remover vínculo/papel ou suspender usuário revoga o acesso **imediatamente** (testado).
-
-## Autenticação e sessão
-- Senha com **bcrypt (custo 12)** — escolha deliberada: `argon2` exige binário nativo, risco em hospedagem compartilhada.
-- Sessão: token aleatório de 256 bits; **só o hash SHA-256** fica no banco; cookie `HttpOnly`, `Secure`, `SameSite=Lax`, prefixo `__Host-` em produção; expiração e revogação no servidor.
-- Bloqueio de tentativas: 5 falhas/15 min por e-mail e 20 por IP; resposta idêntica para e-mail inexistente, senha errada e usuário suspenso; tempo equalizado (hash fictício).
-- **IP do cliente**: último item de `X-Forwarded-For` (o início é forjável) — evita burlar o limite.
-- Redefinição de senha: token de uso único (hash no banco), 60 min, máx. 3 pedidos/h, resposta neutra, **encerra todas as sessões**.
-- Cadastro **somente por convite + aprovação**; sem cadastro público.
-- Redirecionamento pós-login só para caminhos internos (anti *open redirect*).
-
-## Dados e arquivos
-- SQL **sempre parametrizado** (`mysql2`); buscas escapam `%`/`_`.
-- Valores monetários em **centavos inteiros**; entradas validadas por Zod; parsing de moeda sem ponto flutuante.
-- Arquivos: fora de `public/`, nome aleatório, permissão 600; **tipo verificado pela assinatura binária** (ignora nome/Content-Type); SVG/HTML/executáveis recusados; limites por tipo; download autorizado a cada requisição, `Cache-Control: private, no-store`, `nosniff`, CSP restritivo, `Range` para áudio.
-- Financeiro: aprovação por **outra pessoa**; aprovado é **imutável** (correção por estorno com lançamento reverso); período fechado trava lançar/editar/aprovar; reabrir exige administração + motivo; tudo auditado; contribuições individuais exigem permissão **específica** (`contribuicoes`) e não aparecem nem no CSV sem ela.
-- CSV com neutralização de fórmulas (`= + - @`).
-- Web Push: segredo do agendador comparado em tempo constante, método único (POST), recusa segredo vazio/curto; payload sem dados sensíveis; inscrições inválidas (404/410) removidas.
-- Cabeçalhos: `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, **HSTS**, `COOP`.
-- Service worker: cache **somente** de ícones/logo/página offline (verificado por teste e no navegador).
-- Dependências de produção: `npm audit --omit=dev` → **0 vulnerabilidades**.
-
-## Mapa dos requisitos de teste (seção 16 do projeto)
-| Requisito | Evidência |
+## Controles implementados
+| Área | Controle |
 |---|---|
-| Login/logout; sessão revogada/expirada/suspenso | `tests/auth.test.ts`, e2e |
-| Recuperação de senha, convite, aprovação | `tests/membros-senha.test.ts` |
-| Permissões por estrutura; bloqueio de outros ministérios/caminhos/grupos/serviços | `tests/permissoes.test.ts`, `estruturas.test.ts`, `escalas.test.ts`, `eventos.test.ts`, `tarefas-reunioes.test.ts` |
-| Acesso por URL direta | serviços devolvem `NotFound` (testes) + 404 no navegador (e2e 03–08) |
-| Chamada direta a Server Actions | `tests/server-actions.test.ts` (sem sessão) e `tests/actions-autorizacao.test.ts` (autenticado sem permissão) |
-| Proteção de endpoints | `tests/push-rotas.test.ts`, `tests/arquivos.test.ts` |
-| Documentos e fotos | `tests/arquivos.test.ts` |
-| Migrações, falha e recuperação, concorrência | `tests/migracoes.test.ts` |
-| Eventos, escalas, presenças, tarefas | testes dedicados |
-| Financeiro e estornos | `tests/financeiro.test.ts` |
-| Notificações e push | `tests/notificacoes.test.ts`, `push-rotas.test.ts` |
-| PWA | `tests/service-worker.test.ts` + e2e 08 |
-| Compatibilidade mobile | e2e a 390 px (sem *overflow* lateral) e emulação de iPhone 13 |
-| Operação (retenção, LGPD, verificação, backup) | `tests/operacao.test.ts` + execução real de backup/restauração |
+| Autenticação | bcrypt (custo 12); política de senha (10+ caracteres, letras e números); mensagem única para e-mail/senha errados; bloqueio por tentativas (por e-mail e por IP); troca de senha exige a atual e encerra as demais sessões; 5 erros em 15 min bloqueiam a troca |
+| Sessão | token aleatório de 256 bits; só o hash no banco; cookie `__Host-` + `HttpOnly` + `Secure` + `SameSite=Lax`; validada no banco a cada requisição (suspensão/revogação valem na hora); lista e encerramento de dispositivos |
+| Autorização | RBAC com 4 perfis **verificado no servidor** em cada página, Server Action e rota de API (a interface só esconde botões); negação por padrão; páginas negadas respondem **404**; integrante só edita o que criou/lhe foi atribuído; conteúdo publicado é imutável; último administrador protegido |
+| CSRF | Server Actions com verificação de origem do Next + cookie SameSite; rotas de upload/push conferem `Origin`; callback OAuth usa `state` de uso único atrelado ao usuário e à rede; cron só por `Bearer` em tempo constante |
+| Entrada | zod em todos os formulários; SQL 100% parametrizado (testado com payloads e curingas); saída escapada pelo React (testado XSS refletido e armazenado); datas/horas validadas; limites de tamanho |
+| Uploads | tipo real pela **assinatura binária** (ignora nome e Content-Type); só JPG/PNG/WebP/MP4/MOV/WebM; limite por tipo; gravação em fluxo; SHA-256 (duplicados); nome interno aleatório; fora de `public/`; `nosniff` + CSP `sandbox` no download; Range; limitador de envios |
+| Links temporários de mídia | HMAC-SHA256 + expiração (1 h) para as plataformas buscarem o arquivo; sem listagem; assinatura inválida → 404 |
+| Tokens das redes | cifrados em repouso (AES-256-GCM, `TOKEN_ENC_KEY`); nunca enviados ao navegador, nunca em logs/erros (mascaramento); desconectar apaga o token; renovação automática com falha tratada |
+| SSRF | o app só chama hosts fixos das plataformas; URLs devolvidas por elas (upload) exigem HTTPS e domínio da plataforma |
+| Cabeçalhos | CSP restritiva (produção), HSTS, `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, Permissions-Policy, COOP; sem `X-Powered-By` |
+| Taxa | login, troca de senha, upload (120/10 min) e exportação (20/10 min) |
+| Exportações | exige permissão própria e é auditada; Excel grava texto como *string literal* (nunca fórmula); PDF sanitiza caracteres |
+| Auditoria | ações sensíveis em `audit_log` sem segredos |
+| Privacidade | retenção automática, exportação e anonimização por titular (`npm run lgpd`), aviso de privacidade |
+| Operação | backup com checksum e restauração testada; migrações versionadas com checksum |
 
-## Riscos residuais e limitações (transparência)
-1. **Sem verificação em dispositivos reais**: Web Push e instalação da PWA (Android/iPhone) não foram validados em aparelhos.
-2. **Sem 2FA**: a proteção da conta é senha + limite de tentativas.
-3. **CSP estrita não aplicada** (o Next injeta scripts inline; exigiria *nonces*). Mitigações: sem HTML de usuário (texto escapado), cabeçalhos acima.
-4. **Arquivos sem antivírus**; a verificação é de tipo/assinatura e tamanho.
-5. **Sem criptografia em repouso** pela aplicação (depende do provedor); backups só são criptografados se `BACKUP_GPG_RECIPIENT` for usado.
-6. **`X-Forwarded-For`**: a correção assume que o proxy da hospedagem **anexa** o IP real; confirmar após o deploy (ver `IMPLANTACAO.md`, seção 6).
-7. **Bloqueio por e-mail** permite que alguém trave temporariamente a conta de outra pessoa (15 min); aceitável frente ao risco de força bruta.
-8. **Persistência do disco** de arquivos e disponibilidade de cron/`mysqldump` na Hostinger **não confirmadas**.
-9. Dependências **de desenvolvimento** (`eslint-config-next` → `braces`): 5 avisos altos que **não vão para produção**.
-10. **Liturgia**: textos protegidos por direitos autorais só são copiados se o administrador confirmar a autorização da fonte (`direitos_confirmados`); caso contrário grava-se apenas referência e link. A importação consulta endereços definidos por um administrador, por isso é protegida contra SSRF: só HTTPS, o IP é resolvido e validado (bloqueia loopback, rede privada, link-local e metadados de nuvem) e fixado na conexão, redirecionamentos são revalidados (máx. 2), resposta limitada a 1 MB e timeout de 10 s. Texto importado é convertido para texto puro (sem HTML/script). Conteúdo cadastrado à mão nunca é sobrescrito. `LITURGIA_PERMITIR_REDE_LOCAL=1` só vale fora de produção e serve apenas a testes.
+## Resultado da auditoria (Etapa 07)
+Escopo efetivamente testado: código-fonte, dependências, banco (MariaDB 10.11), aplicação em modo produção (`next start`) em `localhost` com navegador real.
+
+| # | Verificação | Resultado | Evidência |
+|---|---|---|---|
+| 1 | Dependências de produção | **Não identificado** (0 vulnerabilidades) | `npm audit --omit=dev` |
+| 2 | Dependências de desenvolvimento | **Vulnerável (risco aceito)**: 5 alertas *high* em `braces`/`micromatch` (cadeia do ESLint). Não são empacotadas nem executam em produção; correção exige *downgrade* do `eslint-config-next` | `npm audit` |
+| 3 | Segredos no repositório/histórico | **Não identificado** | varredura de padrões; `.env*` ignorados; nenhum `.env` no histórico |
+| 4 | Análise estática | **Não identificado** (0 erros) | `eslint`, `tsc --noEmit` |
+| 5 | Injeção SQL | **Não identificado** | `tests/seguranca.test.ts` (payloads em busca de publicações, mídia e auditoria) |
+| 6 | XSS refletido/armazenado | **Não identificado** | e2e com `"><script>` em filtro e `<img onerror>` em título |
+| 7 | IDOR / privilégios | **Corrigido** (falha encontrada na auditoria: páginas negadas devolviam erro 500 e não 404) | `tests/seguranca.test.ts`, e2e (8 rotas negadas ao integrante, 5 ao usuário sem perfil) |
+| 8 | Concorrência da fila (publicação duplicada) | **Corrigido** — `GET_LOCK` em *pool* era reentrante/por sessão; agora usa conexão dedicada (`comTrava`) e reivindicação atômica por linha. Também corrigia o mesmo defeito do envio de push da versão anterior | `tests/agendamento.test.ts` |
+| 9 | Path traversal em arquivos | **Não identificado** | nomes internos só hexadecimais de 32 caracteres; e2e com `..%2F..` |
+| 10 | Upload malicioso | **Não identificado** | PHP/SVG/PDF/áudio/executável rejeitados pela assinatura; limites; sem sobras no disco |
+| 11 | Cookies, cabeçalhos e CSP | **Não identificado** | e2e: CSP ativa sem erros no console; cookie `__Host-` HttpOnly Secure Lax |
+| 12 | Força bruta de login | **Não identificado** | e2e: bloqueio após tentativas |
+| 13 | Redirecionamento aberto | **Não identificado** | `safeNext` (testes herdados) |
+| 14 | SSRF | **Corrigido/Não identificado**: URLs de upload devolvidas pelas plataformas agora são validadas | `tests/integracoes.test.ts` |
+| 15 | Tokens em logs/erros | **Não identificado** | testes de mascaramento e de log |
+| 16 | Backup/restauração | **Não identificado** (funciona; adulteração detectada) | execução real de `backup.sh`/`restaurar.sh` |
+| 17 | Injeção de fórmula em exportação | **Não identificado** | `tests/relatorios.test.ts` |
+| 18 | Webhooks | **Não aplicável** (não implementados) | — |
+| 19 | JWT | **Não aplicável** (sessões opacas em banco) | — |
+| 20 | CORS | **Não aplicável** (sem API pública cross-origin; sem cabeçalhos CORS) | — |
+| 21 | Permissões de arquivos do servidor, firewall, TLS, WAF | **Não verificável** aqui (dependem da Hostinger) | — |
+| 22 | Integrações com as plataformas | **Não verificável** contra APIs reais (sem credenciais) | só servidores simulados |
+| 23 | Teste de carga / DoS | **Não verificável** | — |
+
+## Riscos residuais
+1. **Integrações reais não testadas** (ver `docs/INTEGRACOES.md`); qualquer divergência entre a API real e a simulação aparecerá como falha de publicação (registrada, sem efeito colateral).
+2. `'unsafe-inline'` na CSP de scripts/estilos (necessário ao Next sem *nonce*): reduz a proteção contra XSS caso surja um defeito de escape; mitigado pelo escape do React e sem `dangerouslySetInnerHTML` no código.
+3. Limitadores de taxa de upload/exportação são **em memória** (por instância Node). Login e troca de senha são persistidos no banco.
+4. `TOKEN_ENC_KEY` perdida = redes precisam ser reconectadas; vazada junto com o banco = tokens legíveis. Guarde-a fora do banco e do repositório.
+5. IP do cliente vem de `X-Forwarded-For` (último item): confirmar na Hostinger que o proxy o define.
+6. Dados de demonstração (`seed-demo`) nunca devem ser usados em produção (o script se recusa com `NODE_ENV=production`).
+7. Sem 2FA. Recomendado como evolução, principalmente para administradores.

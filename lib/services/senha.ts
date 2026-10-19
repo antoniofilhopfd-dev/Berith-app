@@ -65,6 +65,8 @@ export async function resetPassword(token: string, novaSenha: string, ip: string
 
 /** Troca a própria senha exigindo a atual; encerra todas as sessões (quem trocou entra de novo com a nova). */
 export async function trocarSenha(userId: number, atual: string, nova: string) {
+  const falhas = await query<RowDataPacket>("SELECT COUNT(*) n FROM audit_log WHERE user_id = ? AND acao = 'senha.trocar_falhou' AND criado_em > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)", [userId]);
+  if (Number(falhas[0].n) >= 5) throw new DomainError("Muitas tentativas incorretas. Aguarde 15 minutos e tente novamente.");
   const u = await query<RowDataPacket>("SELECT senha_hash FROM users WHERE id = ? AND status = 'ativo'", [userId]);
   if (!u[0] || !(await verifyPassword(atual, u[0].senha_hash as string))) {
     await audit(userId, "senha.trocar_falhou");

@@ -1,6 +1,6 @@
 import { createReadStream, statSync } from "node:fs";
 import { Readable } from "node:stream";
-import { chamar, erroPlataforma, num, obj, str } from "./http";
+import { chamar, erroPlataforma, num, obj, str, urlDaPlataformaValida } from "./http";
 import type { ContaAtiva, ConteudoPublicar, MetricasColetadas, MetricasConta, Provedor, ResultadoPublicacao, TokensOAuth } from "./tipos";
 
 /** YouTube — Data API v3 (upload resumível) com OAuth do Google. Projetos de API não verificados publicam apenas como privado. */
@@ -54,6 +54,7 @@ export const youtube: Provedor = {
     });
     const destino = ini.headers.get("location");
     if (ini.status !== 200 || !destino) return falha(ini);
+    if (!urlDaPlataformaValida(destino, ["googleapis.com", "google.com", "youtube.com"], Boolean(process.env.YOUTUBE_API_BASE))) return { ok: false, erro: "A plataforma devolveu um endereço de envio inesperado; a publicação foi interrompida por segurança.", definitivo: true };
     // Envio do arquivo direto do disco, em fluxo.
     const tam = statSync(v.caminhoArquivo).size;
     const corpo = Readable.toWeb(createReadStream(v.caminhoArquivo)) as unknown as BodyInit;
