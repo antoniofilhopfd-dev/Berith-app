@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { contaParaFiltro } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
@@ -14,9 +15,10 @@ export default async function Aprovacoes() {
   const user = await requireUser();
   await exigir(user.id, "aprovacao", "ver");
   const perms = await permissoesDe(user.id);
+  const contaId = await contaParaFiltro();
   const [fila, recentes] = await Promise.all([
-    P.listar(user.id, { status: ["em_revisao"] }),
-    P.listar(user.id, { status: ["aprovado", "ajustes_solicitados"], limite: 12 }),
+    P.listar(user.id, { contaId, status: ["em_revisao"] }),
+    P.listar(user.id, { contaId, status: ["aprovado", "ajustes_solicitados"], limite: 12 }),
   ]);
   return (
     <div className="space-y-6">

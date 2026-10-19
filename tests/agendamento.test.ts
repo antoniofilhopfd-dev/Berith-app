@@ -256,6 +256,61 @@ describe("reprocessar, cancelar e publicação assistida", () => {
   });
 });
 
+describe("várias contas do Instagram: cada publicação sai pela conta escolhida", () => {
+  const extra = (id: string, nome: string, token: string) => execute("INSERT INTO instagram_contas (ig_id, usuario, page_id, token_enc, status, conectada_em) VALUES (?,?,?,?, 'conectada', NOW())", [id, nome, `pg-${id}`, cifrar(token)]);
+  const com = (contaId?: string) => ({ redesExtra: contaId ? { instagram: { legenda: "", hashtags: "", tituloExterno: "", contaId } } : {} });
+  beforeEach(async () => { await execute("DELETE FROM instagram_contas"); await conectar("instagram"); await extra("ext-2", "@segunda", "PAGE-TOKEN-2"); });
+  afterAll(async () => { await execute("DELETE FROM instagram_contas"); });
+  it("guarda a conta escolhida; sem escolha usa a padrão; conta inexistente é recusada", async () => {
+    const a = await P.criar(e.integ, pubBase({ midiaIds: [img], redes: ["instagram"], ...com("ext-2") }), X);
+    const b = await P.criar(e.integ, pubBase({ midiaIds: [img], redes: ["instagram"] }), X);
+    expect((await redes(a))[0].conta_id).toBe("ext-2"); expect((await redes(b))[0].conta_id).toBe("ext-instagram");
+    await expect(P.criar(e.integ, pubBase({ midiaIds: [img], redes: ["instagram"], ...com("999") }), X)).rejects.toThrow(/não está conectada/);
+  });
+  it("publica com o token da conta escolhida (principal e extra), e registra por qual saiu", async () => {
+    chamadas = [];
+    const idA = await aprovada({ redes: ["instagram"], ...com("ext-2") }); await A.agendar(e.coord, idA, EM(10), AGORA);
+    const idB = await aprovada({ redes: ["instagram"], ...com("ext-instagram") }); await A.agendar(e.coord, idB, EM(10), AGORA);
+    const r = await A.processarFila("https://x.org", EM(11));
+    expect(r.publicadas).toBe(2);
+    expect(chamadas.map((c) => [c.c.publicacaoId, c.token]).sort()).toEqual([[idA, "PAGE-TOKEN-2"], [idB, "tok-instagram"]].sort());
+  });
+  it("conta removida: falha com motivo claro (nunca publica por outra conta)", async () => {
+    chamadas = [];
+    const id = await aprovada({ redes: ["instagram"], ...com("ext-2") }); await A.agendar(e.coord, id, EM(20), AGORA);
+    await execute("DELETE FROM instagram_contas WHERE ig_id = 'ext-2'");
+    await A.processarFila("https://x.org", EM(21));
+    expect(chamadas).toHaveLength(0);
+    expect((await redes(id))[0]).toMatchObject({ envio: "falhou" });
+    expect(String((await redes(id))[0].ultimo_erro)).toMatch(/não está mais conectada/);
+  });
+  it("depois de publicada, a conta do envio não muda", async () => {
+    const id = await aprovada({ redes: ["instagram"], ...com("ext-instagram") }); await A.agendar(e.coord, id, EM(30), AGORA);
+    await A.processarFila("https://x.org", EM(31));
+    expect((await redes(id))[0]).toMatchObject({ envio: "publicada", conta_id: "ext-instagram" });
+    await execute("UPDATE publicacao_redes SET conta_id = 'ext-3' WHERE id = ? AND envio NOT IN ('publicada','publicando')", [(await redes(id))[0].id]);
+    expect((await redes(id))[0].conta_id).toBe("ext-instagram");
+  });
+  it("filtros por conta: lista de produção, fila e painel mostram só o que é da conta (e o que ainda não tem conta)", async () => {
+    await execute("DELETE FROM publicacao_redes"); await execute("DELETE FROM publicacoes");
+    const a = await P.criar(e.integ, pubBase({ titulo: "Da principal", midiaIds: [img], redes: ["instagram"] }), X);
+    const b = await P.criar(e.integ, pubBase({ titulo: "Da segunda", midiaIds: [img], redes: ["instagram"], ...com("ext-2") }), X);
+    const sem = await P.criar(e.integ, pubBase({ titulo: "Sem rede ainda", midiaIds: [img], redes: [] }), X);
+    const ids = async (contaId?: string) => (await P.listar(e.coord, { contaId })).map((p) => p.id).sort((x, y) => x - y);
+    expect(await ids()).toEqual([a, b, sem]);
+    expect(await ids("ext-instagram")).toEqual([a, sem]); expect(await ids("ext-2")).toEqual([b, sem]);
+    await P.enviarParaRevisao(e.integ, a); await P.decidir(e.aprov, a, "aprovado", null);
+    await P.enviarParaRevisao(e.integ, b); await P.decidir(e.aprov, b, "aprovado", null);
+    await A.agendar(e.coord, a, EM(40), AGORA); await A.agendar(e.coord, b, EM(41), AGORA);
+    expect((await A.fila(e.coord, { envio: ["agendada"] })).map((f) => f.publicacao_id).sort()).toEqual([a, b].sort());
+    expect((await A.fila(e.coord, { envio: ["agendada"], contaId: "ext-2" })).map((f) => f.publicacao_id)).toEqual([b]);
+    const { dashboard } = await import("@/lib/services/painel");
+    expect((await dashboard(e.coord, AGORA)).totalAgendadas).toBe(2);
+    expect((await dashboard(e.coord, AGORA, "ext-2")).totalAgendadas).toBe(1);
+    expect((await dashboard(e.coord, AGORA, "ext-instagram")).totalAgendadas).toBe(1);
+  });
+});
+
 describe("métricas e lembretes", () => {
   it("coleta métricas oficiais só de publicações automáticas, sem repetir em 6 horas", async () => {
     await conectar("instagram");

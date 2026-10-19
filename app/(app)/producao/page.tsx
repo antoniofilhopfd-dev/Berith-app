@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { contaParaFiltro } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
@@ -26,8 +27,9 @@ export default async function ProducaoLista({ searchParams }: { searchParams: Pr
   const rede = REDES_ATIVAS.includes(sp.rede as Rede) ? (sp.rede as Rede) : undefined;
   const num = (v?: string) => (v && Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : undefined);
   const [op, perms] = await Promise.all([opcoesProducao(user.id), permissoesDe(user.id)]);
+  const contaId = await contaParaFiltro();
   const lista = await P.listar(user.id, {
-    status: status ? [status] : visao === "kanban" ? COLUNAS : undefined, rede, responsavelId: num(sp.resp), campanhaId: num(sp.camp), editoriaId: num(sp.edit),
+    contaId, status: status ? [status] : visao === "kanban" ? COLUNAS : undefined, rede, responsavelId: num(sp.resp), campanhaId: num(sp.camp), editoriaId: num(sp.edit),
     q: sp.q?.trim().slice(0, 80) || undefined, minhas: sp.minhas === "1" ? user.id : undefined, limite: 400,
   });
   const agora = agoraMs();

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { contaParaFiltro } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
@@ -29,7 +30,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
   const resp = sp.resp && Number(sp.resp) > 0 ? Number(sp.resp) : undefined;
   const [perms, op] = await Promise.all([permissoesDe(user.id), opcoesProducao(user.id)]);
   const [lista, datas] = await Promise.all([
-    P.listar(user.id, { de: localToUtc(inicio, "00:00"), ate: localToUtc(fim, "00:00"), rede, responsavelId: resp, status: status ? [status] : ["rascunho", "em_producao", "em_revisao", "ajustes_solicitados", "aprovado", "agendado", "publicado"], limite: 500 }),
+    P.listar(user.id, { contaId: await contaParaFiltro(), de: localToUtc(inicio, "00:00"), ate: localToUtc(fim, "00:00"), rede, responsavelId: resp, status: status ? [status] : ["rascunho", "em_producao", "em_revisao", "ajustes_solicitados", "aprovado", "agendado", "publicado"], limite: 500 }),
     datasDoPeriodo(user.id, inicio, addUm(fim)),
   ]);
   const podeEditarTudo = perms.has("producao:excluir");

@@ -49,11 +49,11 @@ export default async function Redes({ searchParams }: { searchParams: Promise<{ 
                   <p className="mb-1 text-xs font-semibold uppercase text-tinta/60">Contas acompanhadas ({contasIg.length})</p>
                   <ul className="divide-y divide-borda">{contasIg.map((c) => (
                     <li key={c.igId} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
-                      <span>{c.usuario} <Badge tom={c.principal ? "verde" : "cinza"}>{c.principal ? "principal (publica)" : "só métricas"}</Badge></span>
-                      {gerir && !c.principal && <ActionForm action={removerContaAction} submit="Remover" danger className="space-y-0"><input type="hidden" name="igId" value={c.igId} /></ActionForm>}
+                      <span>{c.usuario} <Badge tom="verde">publica e mostra métricas</Badge>{c.principal && contasIg.length > 1 && <span className="ml-1 text-[11px] text-tinta/50">(padrão)</span>}</span>
+                      {gerir && contasIg.length > 1 && <ActionForm action={removerContaAction} submit="Remover" danger className="space-y-0"><input type="hidden" name="igId" value={c.igId} /></ActionForm>}
                     </li>))}
                   </ul>
-                  <p className="mt-2 text-xs text-tinta/60">Ao conectar, todas as Páginas com Instagram profissional que você autorizar entram aqui. Para acompanhar outra conta, clique em Reconectar e marque também a Página dela. A principal é a que recebe as publicações.</p>
+                  <p className="mt-2 text-xs text-tinta/60">Todas as contas valem igual: cada publicação escolhe por qual conta sai, e o seletor do topo mostra produção, calendário, publicações e relatórios daquela conta. Para incluir outra conta, clique em Reconectar e marque também a Página dela. A conta “(padrão)” é só a usada quando a publicação não escolhe.</p>
                 </div>
               )}
               {r.conta?.ultimoErro && <p className="mt-1 rounded bg-red-50 p-2 text-xs text-red-900">{r.conta.ultimoErro}</p>}

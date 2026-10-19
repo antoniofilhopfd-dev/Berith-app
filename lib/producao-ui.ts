@@ -13,6 +13,7 @@ export function paraInicial(pub: Pub, redes: PubRede[], midias: PubMidia[]): Ini
     campanhaId: pub.campanha_id, editoriaId: pub.editoria_id, responsavelId: pub.responsavel_id, prioridade: pub.prioridade,
     legenda: pub.legenda ?? "", hashtags: pub.hashtags ?? "", referencias: pub.referencias ?? "", observacoes: pub.observacoes ?? "",
     porRede: Object.fromEntries(redes.map((r) => [r.rede, { legenda: r.legenda ?? "", hashtags: r.hashtags ?? "", titulo: r.titulo_externo ?? "" }])),
+    contaPorRede: Object.fromEntries(redes.filter((r) => r.conta_id).map((r) => [r.rede, r.conta_id as string])),
     prazoData: prazo?.date ?? "", prazoHora: prazo?.time ?? "", publicarData: publicar?.date ?? "", publicarHora: publicar?.time ?? "",
     midias: midias.map((m) => ({ id: m.id, tipo: m.tipo, nome: m.nome_original, largura: m.largura, altura: m.altura })),
   };

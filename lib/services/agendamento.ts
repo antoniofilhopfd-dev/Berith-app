@@ -8,7 +8,7 @@ import { destinatariosCom, notificar, notificarSeguro } from "./notificacoes";
 import { lerConfig } from "./configuracoes";
 import { conteudoParaValidar, getPub, podeEditar, type Pub, type PubRede } from "./publicacoes";
 import { addDays, localToUtc, utcToLocal } from "@/lib/time";
-import { contaAtiva, contasInstagramAtivas, logIntegracao, marcarContaComErro } from "@/lib/integracoes/contas";
+import { contaAtiva, contaInstagramPorId, contasInstagramAtivas, logIntegracao, marcarContaComErro, marcarContaInstagramComErro } from "@/lib/integracoes/contas";
 import { provedor } from "@/lib/integracoes";
 import { mascarar } from "@/lib/integracoes/cripto";
 import { urlPublicaTemporaria } from "./midia";
@@ -160,18 +160,23 @@ export async function atualizarStatusGeral(pubId: number) {
   }
 }
 
+/** Conta pela qual um envio é publicado: a escolhida na publicação (Instagram) ou a conta única da rede. */
+async function contaDoEnvio(rede: Rede, contaId: string | null, agora: Date) {
+  return rede === "instagram" && contaId ? contaInstagramPorId(contaId, agora) : contaAtiva(rede, agora);
+}
+
 /* ================= Fila ================= */
 export type ItemFila = PubRede & {
   titulo: string; formato: Formato; pub_status: Status; publicar_em: Date | null; responsavel_nome: string | null;
 };
-export async function fila(actor: number, f: { envio?: string[]; limite?: number } = {}): Promise<ItemFila[]> {
+export async function fila(actor: number, f: { envio?: string[]; limite?: number; contaId?: string } = {}): Promise<ItemFila[]> {
   await assertCan(actor, "publicacao", "ver");
-  const w = f.envio?.length ? "AND r.envio IN (?)" : "";
+  const w = (f.envio?.length ? "AND r.envio IN (?)" : "") + (f.contaId ? " AND (r.conta_id = ? OR r.conta_id IS NULL)" : "");
   return query<ItemFila & RowDataPacket>(
     `SELECT r.*, p.titulo, p.formato, p.status AS pub_status, p.publicar_em, u.nome AS responsavel_nome
      FROM publicacao_redes r JOIN publicacoes p ON p.id = r.publicacao_id LEFT JOIN users u ON u.id = p.responsavel_id
      WHERE p.status IN ('aprovado','agendado','publicado') ${w} ORDER BY COALESCE(r.agendada_para, p.publicar_em, r.publicada_em) DESC, r.id DESC LIMIT ?`,
-    [...(f.envio?.length ? [f.envio] : []), f.limite ?? 200]);
+    [...(f.envio?.length ? [f.envio] : []), ...(f.contaId ? [f.contaId] : []), f.limite ?? 200]);
 }
 
 export async function tentativas(actor: number, redeId: number) {
@@ -243,7 +248,7 @@ async function executarFila(base: string, agora: Date, limite: number): Promise<
         const { conteudo } = await montarConteudo(r, base);
         const prob = problemasDoConteudo(await conteudoParaValidar(r.publicacao_id));
         if (prob.length) throw Object.assign(new Error(`Conteúdo inválido: ${prob.join(" ")}`), { definitivo: true });
-        const ca = await contaAtiva(r.rede, agora);
+        const ca = await contaDoEnvio(r.rede, r.conta_id, agora);
         if ("erro" in ca) throw Object.assign(new Error(`${ca.erro} Use a publicação assistida ou conecte a conta em Configurações → Redes sociais.`), { definitivo: true });
         const out = await provedor(r.rede).publicar(ca.conta, conteudo);
         if (out.ok) {
@@ -254,7 +259,7 @@ async function executarFila(base: string, agora: Date, limite: number): Promise<
           await atualizarStatusGeral(r.publicacao_id);
           res.publicadas++;
         } else {
-          if (out.reconectar) await marcarContaComErro(r.rede, out.erro);
+          if (out.reconectar) await (r.rede === "instagram" && r.conta_id ? marcarContaInstagramComErro(r.conta_id, out.erro) : marcarContaComErro(r.rede, out.erro));
           throw Object.assign(new Error(out.erro), { definitivo: out.definitivo, http: out.httpStatus });
         }
       } catch (e) {
@@ -291,14 +296,15 @@ async function avisarFalha(pubId: number, detalhe: string) {
 export async function coletarMetricas(agora = new Date()): Promise<{ publicacoes: number; contas: number; postsConta: number }> {
   const out = { publicacoes: 0, contas: 0, postsConta: 0 };
   const redes = await query<RowDataPacket>(
-    `SELECT r.id, r.rede, r.post_externo_id, p.formato FROM publicacao_redes r JOIN publicacoes p ON p.id = r.publicacao_id
+    `SELECT r.id, r.rede, r.conta_id, r.post_externo_id, p.formato FROM publicacao_redes r JOIN publicacoes p ON p.id = r.publicacao_id
      WHERE r.envio = 'publicada' AND r.assistida = 0 AND r.post_externo_id IS NOT NULL AND r.publicada_em > DATE_SUB(?, INTERVAL 90 DAY)
        AND NOT EXISTS (SELECT 1 FROM metricas_publicacao m WHERE m.publicacao_rede_id = r.id AND m.coletado_em > DATE_SUB(?, INTERVAL 6 HOUR)) LIMIT 100`, [agora, agora]);
-  const contas = new Map<Rede, Awaited<ReturnType<typeof contaAtiva>>>();
+  const contas = new Map<string, Awaited<ReturnType<typeof contaAtiva>>>();
   for (const r of redes) {
     const rede = r.rede as Rede;
-    if (!contas.has(rede)) contas.set(rede, await contaAtiva(rede, agora));
-    const ca = contas.get(rede)!;
+    const chave = `${rede}:${r.conta_id ?? ""}`;
+    if (!contas.has(chave)) contas.set(chave, await contaDoEnvio(rede, (r.conta_id as string | null) ?? null, agora));
+    const ca = contas.get(chave)!;
     if ("erro" in ca) continue;
     try {
       const m = await provedor(rede).metricasPublicacao(ca.conta, r.post_externo_id as string, r.formato as Formato);
