@@ -63,6 +63,24 @@ export async function contasInstagramAtivas(agora = new Date()): Promise<{ igId:
   return out;
 }
 
+/** Conta do Instagram pronta para publicar/ler por id (a principal ou uma extra). Todas valem igual para publicação. */
+export async function contaInstagramPorId(igId: string, agora = new Date()): Promise<{ conta: ContaAtiva } | { erro: string; reconectar: boolean }> {
+  const prin = (await query<RowDataPacket>("SELECT conta_externa_id FROM redes_contas WHERE rede = 'instagram'"))[0];
+  if (prin && String(prin.conta_externa_id) === igId) return contaAtiva("instagram", agora);
+  const r = (await query<RowDataPacket>("SELECT usuario, page_id, token_enc, status FROM instagram_contas WHERE ig_id = ?", [igId]))[0];
+  if (!r) return { erro: "A conta do Instagram desta publicação não está mais conectada.", reconectar: true };
+  if (r.status !== "conectada") return { erro: `O acesso de ${r.usuario} expirou ou está com erro. Reconecte a conta.`, reconectar: true };
+  try { return { conta: { rede: "instagram", contaExternaId: igId, nome: String(r.usuario), token: decifrar(String(r.token_enc)), meta: r.page_id ? { pageId: String(r.page_id) } : {} } }; }
+  catch { return { erro: "Não foi possível ler o acesso salvo (verifique TOKEN_ENC_KEY). Reconecte a conta.", reconectar: true }; }
+}
+
+/** Marca a conta (principal ou extra) com erro de acesso, para pedir reconexão. */
+export async function marcarContaInstagramComErro(igId: string, erro: string) {
+  const prin = (await query<RowDataPacket>("SELECT conta_externa_id FROM redes_contas WHERE rede = 'instagram'"))[0];
+  if (prin && String(prin.conta_externa_id) === igId) return marcarContaComErro("instagram", erro);
+  await execute("UPDATE instagram_contas SET status = 'erro', ultimo_erro = ? WHERE ig_id = ?", [mascarar(erro).slice(0, 300), igId]);
+}
+
 async function guardarExtras(actor: number, principalId: string, extras: ContaExtra[]) {
   for (const x of extras) {
     if (x.contaExternaId === principalId) continue;
@@ -79,8 +97,17 @@ async function guardarExtras(actor: number, principalId: string, extras: ContaEx
 /** Remove uma conta extra e os dados importados dela. A conta principal só sai por "Desconectar". */
 export async function removerContaInstagram(actor: number, igId: string) {
   await assertCan(actor, "integracoes", "gerir");
-  const r = await execute("DELETE FROM instagram_contas WHERE ig_id = ?", [igId]);
-  if (!r.affectedRows) throw new DomainError("Conta não encontrada (a conta principal sai em “Desconectar”).");
+  const prin = (await query<RowDataPacket>("SELECT conta_externa_id FROM redes_contas WHERE rede = 'instagram' AND status = 'conectada'"))[0];
+  if (prin && String(prin.conta_externa_id) === igId) {
+    // Todas as contas valem igual: ao remover a que estava na posição "padrão", a próxima assume.
+    const prox = (await query<RowDataPacket>("SELECT ig_id, usuario, page_id, token_enc FROM instagram_contas WHERE status = 'conectada' ORDER BY usuario LIMIT 1"))[0];
+    if (!prox) throw new DomainError("Esta é a única conta conectada. Para removê-la use “Desconectar”.");
+    await execute("UPDATE redes_contas SET conta_externa_id = ?, nome_exibicao = ?, token_enc = ?, refresh_enc = NULL, expira_em = NULL, status = 'conectada', ultimo_erro = NULL, meta = ? WHERE rede = 'instagram'", [prox.ig_id, prox.usuario, prox.token_enc, JSON.stringify(prox.page_id ? { pageId: String(prox.page_id) } : {})]);
+    await execute("DELETE FROM instagram_contas WHERE ig_id = ?", [prox.ig_id]);
+  } else {
+    const r = await execute("DELETE FROM instagram_contas WHERE ig_id = ?", [igId]);
+    if (!r.affectedRows) throw new DomainError("Conta não encontrada.");
+  }
   await execute("DELETE FROM posts_externos WHERE conta_id = ?", [igId]);
   await execute("DELETE FROM instagram_mensal WHERE conta_id = ?", [igId]);
   await execute("DELETE FROM metricas_conta WHERE conta_id = ?", [igId]);

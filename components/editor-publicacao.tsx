@@ -19,13 +19,15 @@ export type Inicial = {
   campanhaId: number | null; editoriaId: number | null; responsavelId: number | null; prioridade: Prioridade;
   legenda: string; hashtags: string; referencias: string; observacoes: string;
   porRede: Partial<Record<Rede, { legenda: string; hashtags: string; titulo: string }>>;
+  /** Conta (ig_id) de cada rede no envio; só o Instagram tem várias contas. */
+  contaPorRede?: Partial<Record<Rede, string>>;
   prazoData: string; prazoHora: string; publicarData: string; publicarHora: string;
   midias: MidiaSel[];
 };
 type Resultado = { erro?: string; rev?: number; hora?: string };
 
-export function EditorPublicacao({ inicial, campanhas, editorias, pessoas, conta, contas = {}, recentes, salvar, autosalvar, somenteLeitura = false, hashtagsPadrao = "" }: {
-  inicial: Inicial; campanhas: Opcao[]; editorias: Opcao[]; pessoas: Opcao[]; conta: string; contas?: Partial<Record<Rede, string>>; recentes: MidiaPrev[];
+export function EditorPublicacao({ inicial, campanhas, editorias, pessoas, conta, contas = {}, contasIg = [], recentes, salvar, autosalvar, somenteLeitura = false, hashtagsPadrao = "" }: {
+  inicial: Inicial; campanhas: Opcao[]; editorias: Opcao[]; pessoas: Opcao[]; conta: string; contas?: Partial<Record<Rede, string>>; contasIg?: { igId: string; usuario: string }[]; recentes: MidiaPrev[];
   salvar: FormAction; autosalvar: ((fd: FormData) => Promise<Resultado>) | null; somenteLeitura?: boolean; hashtagsPadrao?: string;
 }) {
   const [titulo, setTitulo] = useState(inicial.titulo);
@@ -124,7 +126,9 @@ export function EditorPublicacao({ inicial, campanhas, editorias, pessoas, conta
                   return (
                     <label key={r} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${redes.includes(r) ? "border-verde bg-verde/10" : "border-borda bg-white"}`}>
                       <input type="checkbox" name="redes" value={r} checked={redes.includes(r)} onChange={() => alternarRede(r)} className="h-4 w-4" />
-                      <RedeTag rede={r} comNome />{contas[r] ? <span className="text-xs text-tinta/70">{contas[r]}</span> : <span className="text-xs text-amber-800">(sem conta conectada)</span>}{!compat && <span className="text-xs text-red-700">(não aceita {FORMATO_ROTULO[formato]})</span>}
+                      <RedeTag rede={r} comNome />{r === "instagram" && contasIg.length > 1
+                        ? <select name="conta_instagram" defaultValue={inicial.contaPorRede?.instagram ?? contasIg[0].igId} onClick={(e) => e.stopPropagation()} aria-label="Conta do Instagram desta publicação" className="min-h-8 rounded border border-borda bg-white px-1 text-xs">{contasIg.map((c) => <option key={c.igId} value={c.igId}>{c.usuario}</option>)}</select>
+                        : contas[r] ? <span className="text-xs text-tinta/70">{contas[r]}</span> : <span className="text-xs text-amber-800">(sem conta conectada)</span>}{!compat && <span className="text-xs text-red-700">(não aceita {FORMATO_ROTULO[formato]})</span>}
                     </label>
                   );
                 })}

@@ -37,8 +37,12 @@ export type Dashboard = {
   redesConectadas: number;
 };
 
-export async function dashboard(actor: number, agora = new Date()): Promise<Dashboard> {
+export async function dashboard(actor: number, agora = new Date(), contaId?: string): Promise<Dashboard> {
   await assertCan(actor, "producao", "ver");
+  // Filtro por conta do Instagram (seletor do topo): publicações dela + as que ainda não têm conta; envios dela + os sem conta.
+  const pc = contaId ? " AND (EXISTS (SELECT 1 FROM publicacao_redes cr WHERE cr.publicacao_id = p.id AND cr.conta_id = ?) OR NOT EXISTS (SELECT 1 FROM publicacao_redes cr WHERE cr.publicacao_id = p.id AND cr.conta_id IS NOT NULL))" : "";
+  const rc = contaId ? " AND (r.conta_id = ? OR r.conta_id IS NULL)" : "";
+  const A = contaId ? [contaId] : [];
   const hoje = utcToLocal(agora).date;
   const meiaNoite = (d: string) => localToUtc(d, "00:00");
   const inicioMes = `${hoje.slice(0, 7)}-01`;
@@ -50,24 +54,24 @@ export async function dashboard(actor: number, agora = new Date()): Promise<Dash
   const [agendadas, totalAg, aguard, prod, pubMes, pubAnt, porRede, proprias, pendMinhas, atrasadasEquipe, falhas, contas, desemp] = await Promise.all([
     query<ItemAgenda & RowDataPacket>(
       `SELECT p.id, p.titulo, p.formato, p.status, p.publicar_em, (SELECT GROUP_CONCAT(r.rede ORDER BY r.rede) FROM publicacao_redes r WHERE r.publicacao_id = p.id) AS redes
-       FROM publicacoes p WHERE p.status = 'agendado' AND p.publicar_em >= ? ORDER BY p.publicar_em LIMIT 8`, [agora]),
-    query<RowDataPacket>("SELECT COUNT(*) n FROM publicacoes WHERE status = 'agendado'"),
-    query<RowDataPacket>(`SELECT p.id, p.titulo, u.nome AS responsavel_nome, p.atualizado_em FROM publicacoes p LEFT JOIN users u ON u.id = p.responsavel_id WHERE p.status = 'em_revisao' ORDER BY p.atualizado_em LIMIT 6`),
-    query<RowDataPacket>("SELECT status, COUNT(*) n FROM publicacoes WHERE status IN ('rascunho','em_producao','em_revisao','ajustes_solicitados','aprovado') GROUP BY status"),
-    query<RowDataPacket>("SELECT COUNT(*) n FROM publicacao_redes WHERE envio = 'publicada' AND publicada_em >= ? AND publicada_em < ?", [meiaNoite(inicioMes), meiaNoite(fimMes)]),
-    query<RowDataPacket>("SELECT COUNT(*) n FROM publicacao_redes WHERE envio = 'publicada' AND publicada_em >= ? AND publicada_em < ?", [meiaNoite(inicioMesAnt), meiaNoite(inicioMes)]),
-    query<RowDataPacket>("SELECT rede, COUNT(*) total FROM publicacao_redes WHERE envio = 'publicada' AND publicada_em >= ? AND publicada_em < ? GROUP BY rede ORDER BY total DESC", [meiaNoite(inicioMes), meiaNoite(fimMes)]),
+       FROM publicacoes p WHERE p.status = 'agendado' AND p.publicar_em >= ?${pc} ORDER BY p.publicar_em LIMIT 8`, [agora, ...A]),
+    query<RowDataPacket>(`SELECT COUNT(*) n FROM publicacoes p WHERE p.status = 'agendado'${pc}`, A),
+    query<RowDataPacket>(`SELECT p.id, p.titulo, u.nome AS responsavel_nome, p.atualizado_em FROM publicacoes p LEFT JOIN users u ON u.id = p.responsavel_id WHERE p.status = 'em_revisao'${pc} ORDER BY p.atualizado_em LIMIT 6`, A),
+    query<RowDataPacket>(`SELECT p.status, COUNT(*) n FROM publicacoes p WHERE p.status IN ('rascunho','em_producao','em_revisao','ajustes_solicitados','aprovado')${pc} GROUP BY p.status`, A),
+    query<RowDataPacket>(`SELECT COUNT(*) n FROM publicacao_redes r WHERE r.envio = 'publicada' AND r.publicada_em >= ? AND r.publicada_em < ?${rc}`, [meiaNoite(inicioMes), meiaNoite(fimMes), ...A]),
+    query<RowDataPacket>(`SELECT COUNT(*) n FROM publicacao_redes r WHERE r.envio = 'publicada' AND r.publicada_em >= ? AND r.publicada_em < ?${rc}`, [meiaNoite(inicioMesAnt), meiaNoite(inicioMes), ...A]),
+    query<RowDataPacket>(`SELECT r.rede, COUNT(*) total FROM publicacao_redes r WHERE r.envio = 'publicada' AND r.publicada_em >= ? AND r.publicada_em < ?${rc} GROUP BY r.rede ORDER BY total DESC`, [meiaNoite(inicioMes), meiaNoite(fimMes), ...A]),
     query<RowDataPacket>("SELECT nome, dia, anual FROM datas_especiais"),
     query<RowDataPacket>(
       `SELECT id, titulo, status, prazo FROM publicacoes WHERE responsavel_id = ? AND status IN ('rascunho','em_producao','ajustes_solicitados') ORDER BY (status = 'ajustes_solicitados') DESC, prazo IS NULL, prazo LIMIT 10`, [actor]),
     query<RowDataPacket>(`SELECT id, titulo, status, prazo FROM publicacoes WHERE status IN ('rascunho','em_producao','ajustes_solicitados') AND prazo IS NOT NULL AND prazo < ? ORDER BY prazo LIMIT 10`, [agora]),
-    query<Falha & RowDataPacket>(`SELECT r.id, r.publicacao_id, r.rede, p.titulo, r.ultimo_erro FROM publicacao_redes r JOIN publicacoes p ON p.id = r.publicacao_id WHERE r.envio = 'falhou' ORDER BY r.id DESC LIMIT 8`),
+    query<Falha & RowDataPacket>(`SELECT r.id, r.publicacao_id, r.rede, p.titulo, r.ultimo_erro FROM publicacao_redes r JOIN publicacoes p ON p.id = r.publicacao_id WHERE r.envio = 'falhou'${rc} ORDER BY r.id DESC LIMIT 8`, A),
     query<RowDataPacket>("SELECT COUNT(*) n FROM redes_contas WHERE status = 'conectada'"),
     query<RowDataPacket>(
       `SELECT COUNT(DISTINCT x.publicacao_rede_id) AS pubs, COUNT(DISTINCT r.rede) AS redes, SUM(x.alcance) AS alcance,
          SUM(COALESCE(x.curtidas,0) + COALESCE(x.comentarios,0) + COALESCE(x.compartilhamentos,0) + COALESCE(x.salvamentos,0)) AS eng
        FROM metricas_publicacao x JOIN publicacao_redes r ON r.id = x.publicacao_rede_id
-       WHERE x.id = (SELECT MAX(y.id) FROM metricas_publicacao y WHERE y.publicacao_rede_id = x.publicacao_rede_id) AND r.publicada_em >= DATE_SUB(?, INTERVAL 30 DAY)`, [agora]),
+       WHERE x.id = (SELECT MAX(y.id) FROM metricas_publicacao y WHERE y.publicacao_rede_id = x.publicacao_rede_id) AND r.publicada_em >= DATE_SUB(?, INTERVAL 30 DAY)${rc}`, [agora, ...A]),
   ]);
 
   const pend: ItemPendencia[] = [];

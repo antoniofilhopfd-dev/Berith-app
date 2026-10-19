@@ -6,7 +6,7 @@ import { permissoesDe } from "@/lib/permissions";
 import * as P from "@/lib/services/publicacoes";
 import { NotFoundError } from "@/lib/services/errors";
 import { opcoesProducao } from "@/lib/services/opcoes";
-import { nomesContas } from "@/lib/integracoes/contas";
+import { contasInstagram, nomesContas } from "@/lib/integracoes/contas";
 import { EditorPublicacao } from "@/components/editor-publicacao";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { Badge, Card, Empty, PageHeader } from "@/components/ui";
@@ -111,7 +111,7 @@ export default async function Producao({ params, searchParams }: { params: Promi
         <h2 id="h-conteudo" className="sr-only">Conteúdo</h2>
         {!editavel && <p className="mb-3 rounded-lg bg-borda/40 p-3 text-sm">{pub.status === "publicado" ? "Publicação concluída: o conteúdo não pode mais ser alterado." : pub.status === "cancelado" ? "Publicação cancelada." : "Você pode visualizar esta publicação, mas não editá-la."}</p>}
         {pub.status === "aprovado" && editavel && <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm">Alterar legenda, hashtags, mídias, formato ou redes de um conteúdo aprovado cancela a aprovação e exige nova revisão.</p>}
-        <EditorPublicacao inicial={paraInicial(pub, redes, midias)} campanhas={op.campanhas} editorias={op.editorias} pessoas={op.pessoas} conta={op.contaNome} contas={await nomesContas()} recentes={op.recentes}
+        <EditorPublicacao inicial={paraInicial(pub, redes, midias)} campanhas={op.campanhas} editorias={op.editorias} pessoas={op.pessoas} conta={op.contaNome} contas={await nomesContas()} contasIg={await contasInstagram()} recentes={op.recentes}
           salvar={salvarPublicacaoAction} autosalvar={autosaveOk ? autosalvarAction : null} somenteLeitura={!editavel} hashtagsPadrao={op.config.hashtagsPadrao} />
       </section>
 

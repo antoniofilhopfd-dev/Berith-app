@@ -34,8 +34,8 @@ export async function anonimizar(conn, email) {
   if (Number(adm.n) > 0) return { ok: false, motivo: "Retire antes o perfil de administrador." };
   await conn.beginTransaction();
   try {
-    await conn.query("UPDATE users SET nome = ?, email = ?, senha_hash = '!', status = 'suspenso' WHERE id = ?", [`Membro removido nº ${id}`, `removido+${id}@invalido.invalid`, id]);
-    for (const t of ["sessions", "push_subscriptions", "notificacoes", "notificacao_config", "notificacao_tipos", "member_profiles", "password_resets", "user_roles", "oauth_estados"])
+    await conn.query("UPDATE users SET nome = ?, email = ?, senha_hash = '!', status = 'suspenso', acesso_hmac = NULL, acesso_enc = NULL WHERE id = ?", [`Membro removido nº ${id}`, `removido+${id}@invalido.invalid`, id]);
+    for (const t of ["sessions", "push_subscriptions", "notificacoes", "notificacao_config", "notificacao_tipos", "member_profiles", "password_resets", "user_roles", "oauth_estados", "dispositivos_conhecidos"])
       await conn.query(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
     await conn.query("UPDATE publicacoes SET responsavel_id = NULL WHERE responsavel_id = ? AND status IN ('rascunho','em_producao','ajustes_solicitados','em_revisao')", [id]);
     await conn.query("INSERT INTO audit_log (user_id, acao, entidade, entidade_id) VALUES (NULL, 'lgpd.anonimizar', 'user', ?)", [String(id)]);

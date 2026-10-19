@@ -7,7 +7,8 @@ import { PERFIS } from "@/lib/permissions";
 import * as E from "@/lib/services/equipe";
 import { sendMail } from "@/lib/services/mailer";
 import { adminCreateReset } from "@/lib/services/senha";
-import { emitirCodigo, revogarCodigo } from "@/lib/auth/codigo";
+import { definirCodigo, emitirCodigo, revogarCodigo } from "@/lib/auth/codigo";
+import { anonimizarPessoa } from "@/lib/services/lgpd";
 
 const id = z.coerce.number().int().positive();
 
@@ -32,3 +33,12 @@ export const codigoAcessoAction = guarded(async (u, f) => {
   return { ok: `Código de ${r.nome} gerado. Os acessos anteriores dessa pessoa foram encerrados.`, segredo: r.codigo };
 }, ["/equipe"]);
 export const revogarCodigoAction = guarded(async (u, f) => { await revogarCodigo(u.id, id.parse(f.get("id"))); return { ok: "Código revogado. A pessoa não consegue mais entrar por código." }; }, ["/equipe"]);
+export const definirCodigoAction = guarded(async (u, f) => {
+  const r = await definirCodigo(u.id, id.parse(f.get("id")), String(f.get("codigo") ?? ""));
+  return { ok: `Código de ${r.nome} atualizado. Os acessos anteriores dessa pessoa foram encerrados.` };
+}, ["/equipe"]);
+export const anonimizarAction = guarded(async (u, f) => {
+  if (f.get("confirmo") !== "on") throw new z.ZodError([{ code: "custom", message: "Marque a confirmação para anonimizar.", path: [] }]);
+  await anonimizarPessoa(u.id, id.parse(f.get("id")));
+  return { ok: "Pessoa anonimizada: nome, e-mail e acessos foram removidos; o histórico editorial foi mantido sem identificação." };
+}, ["/equipe"]);

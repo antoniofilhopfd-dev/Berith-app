@@ -5,7 +5,8 @@ import { cargaDaEquipe, listarEquipe, listarPendentes } from "@/lib/services/equ
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
-import { aprovarAction, codigoAcessoAction, convidarAction, linkSenhaAction, perfilEquipeAction, rejeitarAction, situacaoAction } from "./actions";
+import { codigosVisiveis } from "@/lib/auth/codigo";
+import { anonimizarAction, aprovarAction, codigoAcessoAction, definirCodigoAction, convidarAction, linkSenhaAction, perfilEquipeAction, rejeitarAction, situacaoAction } from "./actions";
 
 export const metadata = { title: "Equipe" };
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export default async function Equipe() {
   await exigir(user.id, "equipe", "ver");
   const perms = await permissoesDe(user.id);
   const gerir = perms.has("equipe:gerir");
-  const [pessoas, carga, pendentes] = await Promise.all([listarEquipe(user.id), cargaDaEquipe(user.id), gerir ? listarPendentes(user.id) : Promise.resolve([])]);
+  const [pessoas, carga, pendentes, codigos] = await Promise.all([listarEquipe(user.id), cargaDaEquipe(user.id), gerir ? listarPendentes(user.id) : Promise.resolve([]), gerir ? codigosVisiveis(user.id) : Promise.resolve(new Map<number, string>())]);
   return (
     <div className="space-y-6">
       <PageHeader titulo="Equipe de comunicação" sub="Integrantes, perfis de acesso e acompanhamento das atividades." />
@@ -32,12 +33,20 @@ export default async function Equipe() {
         {pessoas.length === 0 ? <Empty>Nenhuma pessoa cadastrada.</Empty> : (
           <table className="w-full min-w-[760px] text-left text-sm">
             <caption className="sr-only">Equipe de comunicação</caption>
-            <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr><th scope="col" className="py-2">Pessoa</th><th scope="col">Perfil</th><th scope="col" className="text-right">Em produção</th><th scope="col" className="text-right">Em revisão</th><th scope="col" className="text-right">Ajustes</th><th scope="col" className="text-right">Atrasadas</th><th scope="col" className="text-right">Publicadas (30 d)</th>{gerir && <th scope="col" className="pl-3">Ações</th>}</tr></thead>
+            <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr><th scope="col" className="py-2">Pessoa</th>{gerir && <th scope="col">Código de acesso</th>}<th scope="col">Perfil</th><th scope="col" className="text-right">Em produção</th><th scope="col" className="text-right">Em revisão</th><th scope="col" className="text-right">Ajustes</th><th scope="col" className="text-right">Atrasadas</th><th scope="col" className="text-right">Publicadas (30 d)</th>{gerir && <th scope="col" className="pl-3">Ações</th>}</tr></thead>
             <tbody className="divide-y divide-borda">{pessoas.map((p) => {
               const c = carga.get(p.id);
               return (
                 <tr key={p.id} className={p.status === "suspenso" ? "opacity-60" : ""}>
                   <th scope="row" className="py-2 pr-2 font-medium">{p.nome}{p.status === "suspenso" && <> <Badge tom="vermelho">suspenso</Badge></>}<div className="font-normal text-xs text-tinta/60">{p.temCodigo ? "código de acesso ativo · " : "sem código · "}{p.email}{p.telefone ? ` · ${p.telefone}` : ""} · desde {formatDate(p.criado_em)}</div></th>
+                  {gerir && <td className="py-2 pr-3">{p.status !== "ativo" ? <span className="text-xs text-tinta/50">—</span> : (
+                    <div className="flex flex-col gap-1">
+                      {codigos.get(p.id) ? <code className="w-fit rounded-md border border-dashed border-verde/50 bg-verde/5 px-2 py-1 font-mono text-sm font-semibold tracking-widest" aria-label={`Código de ${p.nome}`}>{codigos.get(p.id)}</code>
+                        : <span className="text-xs text-tinta/50">{p.temCodigo ? "definido (não consultável)" : "sem código"}</span>}
+                      <details className="text-xs"><summary className="inline-flex min-h-8 cursor-pointer items-center rounded border border-borda bg-white px-2 hover:bg-fundo" aria-label={`Editar código de ${p.nome}`}>✎ editar</summary>
+                        <ActionForm action={definirCodigoAction} submit="Salvar código" resetOnOk className="mt-1 space-y-1"><input type="hidden" name="id" value={p.id} />
+                          <input name="codigo" required minLength={6} maxLength={11} autoCapitalize="characters" autoComplete="off" placeholder="6 a 10 letras e números" aria-label="Novo código" className="min-h-9 w-40 rounded border border-borda px-2 font-mono uppercase" /></ActionForm></details>
+                    </div>)}</td>}
                   <td>{gerir && p.id !== user.id ? (
                     <ActionForm action={perfilEquipeAction} submit="Salvar" className="flex items-center gap-1 space-y-0"><input type="hidden" name="id" value={p.id} />
                       <select name="perfil" defaultValue={p.perfil ?? "nenhum"} aria-label={`Perfil de ${p.nome}`} className="min-h-10 rounded-lg border border-borda px-2 text-sm">{PERFIS.map((x) => <option key={x} value={x}>{PERFIL_ROTULO[x]}</option>)}<option value="nenhum">Sem perfil (sem acesso)</option></select></ActionForm>
@@ -47,7 +56,11 @@ export default async function Equipe() {
                     {p.status === "ativo" && <ActionForm action={codigoAcessoAction} submit={p.temCodigo ? "Gerar novo código" : "Gerar código de acesso"} className="space-y-0"><input type="hidden" name="id" value={p.id} /></ActionForm>}
                     {p.id !== user.id && <>
                     <ActionForm action={situacaoAction} submit={p.status === "ativo" ? "Suspender" : "Reativar"} danger={p.status === "ativo"} className="space-y-0"><input type="hidden" name="id" value={p.id} /><input type="hidden" name="status" value={p.status === "ativo" ? "suspenso" : "ativo"} /></ActionForm>
-                    {p.status === "ativo" && <ActionForm action={linkSenhaAction} submit="Gerar link de senha" className="space-y-0"><input type="hidden" name="id" value={p.id} /></ActionForm>}</>}</div></td>}
+                    {p.status === "ativo" && <ActionForm action={linkSenhaAction} submit="Gerar link de senha" className="space-y-0"><input type="hidden" name="id" value={p.id} /></ActionForm>}
+                    <a href={`/api/equipe/${p.id}/exportar`} className="inline-flex min-h-10 items-center justify-center rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Exportar dados</a>
+                    <details className="text-xs"><summary className="inline-flex min-h-10 cursor-pointer items-center rounded-lg border border-red-300 px-3 text-sm text-red-800 hover:bg-red-50">Anonimizar</summary>
+                      <ActionForm action={anonimizarAction} submit="Anonimizar esta pessoa" danger className="mt-1 space-y-1"><input type="hidden" name="id" value={p.id} />
+                        <label className="flex items-start gap-1"><input type="checkbox" name="confirmo" className="mt-0.5 h-4 w-4" /><span>Confirmo: remove nome, e-mail e acessos (irreversível); o histórico editorial fica sem identificação.</span></label></ActionForm></details></>}</div></td>}
                 </tr>
               );
             })}</tbody>

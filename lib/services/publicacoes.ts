@@ -7,6 +7,7 @@ import {
 } from "@/lib/editorial";
 import type { PublicacaoInput } from "@/lib/validation/editorial";
 import { audit } from "./audit";
+import { contasInstagram } from "@/lib/integracoes/contas";
 import { DomainError, NotFoundError } from "./errors";
 import { destinatariosCom, notificar, notificarSeguro } from "./notificacoes";
 import { lerConfig } from "./configuracoes";
@@ -22,7 +23,7 @@ export type Pub = {
 export type PubRede = {
   id: number; publicacao_id: number; rede: Rede; legenda: string | null; hashtags: string | null; titulo_externo: string | null;
   envio: "pendente" | "agendada" | "publicando" | "publicada" | "falhou" | "cancelada"; agendada_para: Date | null; publicada_em: Date | null;
-  assistida: number; post_externo_id: string | null; url_externa: string | null; tentativas: number; ultimo_erro: string | null;
+  assistida: number; post_externo_id: string | null; url_externa: string | null; tentativas: number; ultimo_erro: string | null; conta_id: string | null;
 };
 export type PubMidia = { id: number; ordem: number; tipo: "imagem" | "video"; nome_original: string; largura: number | null; altura: number | null; mime: string; tamanho: number };
 export type Snapshot = {
@@ -78,12 +79,15 @@ export async function conteudoParaValidar(id: number, c: Q | null = null): Promi
 export type Filtros = {
   status?: Status[]; rede?: Rede; responsavelId?: number; campanhaId?: number; editoriaId?: number;
   de?: Date; ate?: Date; q?: string; minhas?: number; limite?: number;
+  /** Conta do Instagram (ig_id): mostra o que é dela e o que ainda não tem conta definida. */
+  contaId?: string;
 };
 
 function montarWhere(f: Filtros) {
   const w: string[] = []; const p: unknown[] = [];
   if (f.status?.length) { w.push("p.status IN (?)"); p.push(f.status); }
   if (f.rede) { w.push("EXISTS (SELECT 1 FROM publicacao_redes r WHERE r.publicacao_id = p.id AND r.rede = ?)"); p.push(f.rede); }
+  if (f.contaId) { w.push("(EXISTS (SELECT 1 FROM publicacao_redes r WHERE r.publicacao_id = p.id AND r.conta_id = ?) OR NOT EXISTS (SELECT 1 FROM publicacao_redes r WHERE r.publicacao_id = p.id AND r.conta_id IS NOT NULL))"); p.push(f.contaId); }
   if (f.responsavelId) { w.push("p.responsavel_id = ?"); p.push(f.responsavelId); }
   if (f.campanhaId) { w.push("p.campanha_id = ?"); p.push(f.campanhaId); }
   if (f.editoriaId) { w.push("p.editoria_id = ?"); p.push(f.editoriaId); }
@@ -201,6 +205,9 @@ async function validarReferencias(c: Q, d: PublicacaoInput) {
   }
 }
 
+/** Contas do Instagram conectadas: ids válidos e a padrão (principal) para quem não escolheu. */
+const r_ig = (l: Awaited<ReturnType<typeof contasInstagram>>) => ({ ids: l.map((c) => c.igId), principal: (l.find((c) => c.principal) ?? l[0])?.igId ?? null });
+
 async function sincronizarRedesEMidias(c: Q, id: number, d: PublicacaoInput) {
   const atuais = await q<RowDataPacket>(c, "SELECT rede, envio FROM publicacao_redes WHERE publicacao_id = ?", [id]);
   for (const a of atuais) {
@@ -209,12 +216,19 @@ async function sincronizarRedesEMidias(c: Q, id: number, d: PublicacaoInput) {
       await c.query("DELETE FROM publicacao_redes WHERE publicacao_id = ? AND rede = ?", [id, a.rede]);
     }
   }
+  const contas = r_ig(await contasInstagram());
   for (const r of d.redes) {
     const x = d.redesExtra[r];
+    let contaId: string | null = null;
+    if (r === "instagram") {
+      contaId = x?.contaId ?? contas.principal;
+      if (contaId && !contas.ids.includes(contaId)) throw new DomainError("A conta do Instagram escolhida não está conectada.");
+    }
     await c.query(
-      `INSERT INTO publicacao_redes (publicacao_id, rede, legenda, hashtags, titulo_externo) VALUES (?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE legenda = VALUES(legenda), hashtags = VALUES(hashtags), titulo_externo = VALUES(titulo_externo)`,
-      [id, r, x?.legenda ?? null, x?.hashtags ?? null, x?.tituloExterno ?? null]);
+      `INSERT INTO publicacao_redes (publicacao_id, rede, legenda, hashtags, titulo_externo, conta_id) VALUES (?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE legenda = VALUES(legenda), hashtags = VALUES(hashtags), titulo_externo = VALUES(titulo_externo),
+         conta_id = IF(envio IN ('publicada','publicando'), conta_id, COALESCE(VALUES(conta_id), conta_id))`,
+      [id, r, x?.legenda ?? null, x?.hashtags ?? null, x?.tituloExterno ?? null, contaId]);
   }
   await c.query("DELETE FROM publicacao_midias WHERE publicacao_id = ?", [id]);
   for (let i = 0; i < d.midiaIds.length; i++) await c.query("INSERT INTO publicacao_midias (publicacao_id, midia_id, ordem) VALUES (?,?,?)", [id, d.midiaIds[i], i]);

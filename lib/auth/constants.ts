@@ -8,3 +8,6 @@ export function safeNext(next: unknown): string {
   const n = typeof next === "string" ? next : "";
   return n.startsWith("/") && !n.startsWith("//") && !n.includes("\\") && !/[\r\n]/.test(n) && n.length < 400 ? n : "/";
 }
+
+/** Cookie do aparelho conhecido (entrada por código). */
+export const DEV_COOKIE = process.env.NODE_ENV === "production" ? "__Host-nb_dev" : "nb_dev";

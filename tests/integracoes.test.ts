@@ -116,7 +116,6 @@ describe("conexão OAuth", () => {
     await execute("INSERT INTO posts_externos (rede, conta_id, id_externo, publicado_em, coletado_em) VALUES ('instagram','222','p1', NOW(), NOW()), ('instagram','111','p2', NOW(), NOW())");
     await execute("INSERT INTO instagram_mensal (conta_id, periodo, atualizado_em) VALUES ('222','2026-10', NOW())");
     await expect(C.removerContaInstagram(e.coord, "222")).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(C.removerContaInstagram(e.admin, "111")).rejects.toThrow(/principal/); // a principal sai por “Desconectar”
     await C.removerContaInstagram(e.admin, "222");
     expect((await C.contasInstagram()).map((c) => c.igId)).toEqual(["111", "333"]);
     expect((await query<any>("SELECT conta_id FROM posts_externos")).map((r: any) => r.conta_id)).toEqual(["111"]);
@@ -512,5 +511,22 @@ describe("registro de provedores", () => {
     expect(provedor("instagram").variaveis()).toEqual(["META_APP_ID", "META_APP_SECRET"]);
     expect(provedor("youtube").variaveis()).toEqual(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
     expect(DomainError).toBeDefined();
+  });
+});
+
+describe("Instagram: remover a conta padrão promove a próxima (todas valem igual)", () => {
+  it("a conta que sai deixa de existir, a próxima assume o lugar e os dados dela ficam; a última só sai por Desconectar", async () => {
+    await execute("DELETE FROM redes_contas WHERE rede = 'instagram'"); await execute("DELETE FROM instagram_contas");
+    await execute("INSERT INTO redes_contas (rede, nome_exibicao, conta_externa_id, status, token_enc, meta) VALUES ('instagram','@a','A','conectada',?, '{}')", [cifrar("TOK-A")]);
+    await execute("INSERT INTO instagram_contas (ig_id, usuario, page_id, token_enc, status, conectada_em) VALUES ('B','@b','pgB',?, 'conectada', NOW())", [cifrar("TOK-B")]);
+    await execute("INSERT INTO posts_externos (rede, conta_id, id_externo, publicado_em, coletado_em) VALUES ('instagram','A','pa', NOW(), NOW()), ('instagram','B','pb', NOW(), NOW())");
+    await C.removerContaInstagram(e.admin, "A");
+    expect((await C.contasInstagram()).map((c) => [c.igId, c.usuario, c.principal])).toEqual([["B", "@b", true]]);
+    expect((await query<any>("SELECT COUNT(*) n FROM instagram_contas"))[0].n).toBe(0);
+    expect((await C.contaInstagramPorId("B") as any).conta).toMatchObject({ contaExternaId: "B", token: "TOK-B", meta: { pageId: "pgB" } });
+    expect((await query<any>("SELECT conta_id FROM posts_externos")).map((r: any) => r.conta_id)).toEqual(["B"]);
+    await expect(C.removerContaInstagram(e.admin, "B")).rejects.toThrow(/única conta/);
+    expect(await C.contaInstagramPorId("A")).toMatchObject({ erro: expect.stringMatching(/não está mais conectada/) });
+    await execute("DELETE FROM redes_contas WHERE rede = 'instagram'"); await execute("DELETE FROM posts_externos");
   });
 });

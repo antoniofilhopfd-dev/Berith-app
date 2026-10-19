@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { contaParaFiltro } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
@@ -25,11 +26,12 @@ export default async function Publicacoes({ searchParams }: { searchParams: Prom
   const aba = ["fila", "falhas", "historico"].includes(sp.aba ?? "") ? sp.aba! : "fila";
   const perms = await permissoesDe(user.id);
   const podeEditar = perms.has("publicacao:editar"), podePublicar = perms.has("publicacao:criar");
+  const contaId = await contaParaFiltro();
   const [fila, falhas, hist, prontos, redes] = await Promise.all([
-    A.fila(user.id, { envio: ["agendada", "publicando"] }),
-    A.fila(user.id, { envio: ["falhou"] }),
-    A.fila(user.id, { envio: ["publicada", "cancelada"], limite: 100 }),
-    P.listar(user.id, { status: ["aprovado"], limite: 50 }),
+    A.fila(user.id, { contaId, envio: ["agendada", "publicando"] }),
+    A.fila(user.id, { contaId, envio: ["falhou"] }),
+    A.fila(user.id, { contaId, envio: ["publicada", "cancelada"], limite: 100 }),
+    P.listar(user.id, { contaId, status: ["aprovado"], limite: 50 }),
     perms.has("integracoes:ver") ? statusRedes(user.id) : Promise.resolve(null),
   ]);
   const abas = [

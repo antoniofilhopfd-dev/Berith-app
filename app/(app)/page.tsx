@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { contaParaFiltro } from "@/lib/auth/conta";
 import { requireUser } from "@/lib/auth/session";
 import { perfisDe, permissoesDe } from "@/lib/permissions";
 import { dashboard } from "@/lib/services/painel";
@@ -28,7 +29,7 @@ export default async function Inicio() {
       </div>
     );
   }
-  const d = await dashboard(user.id);
+  const d = await dashboard(user.id, new Date(), await contaParaFiltro());
   const variacao = d.publicadasMesAnterior === 0 ? null : Math.round(((d.publicadasMes - d.publicadasMesAnterior) / d.publicadasMesAnterior) * 100);
   const semContas = d.redesConectadas === 0;
   return (
