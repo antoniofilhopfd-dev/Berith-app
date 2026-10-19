@@ -2,6 +2,13 @@
 
 export const REDES = ["instagram", "facebook", "tiktok", "youtube"] as const;
 export type Rede = (typeof REDES)[number];
+/**
+ * Redes habilitadas no produto (telas, formulários, conexão, coleta). O ministério usa só o Instagram por enquanto:
+ * para reativar outra, inclua-a aqui. Os dados já gravados das demais continuam no banco e legíveis.
+ * Variável REDES_ATIVAS (lista separada por vírgulas) só é lida no servidor/testes.
+ */
+const DO_AMBIENTE = (typeof process !== "undefined" ? process.env.REDES_ATIVAS : undefined)?.split(",").map((x) => x.trim()).filter((x): x is Rede => (REDES as readonly string[]).includes(x));
+export const REDES_ATIVAS: readonly Rede[] = DO_AMBIENTE && DO_AMBIENTE.length ? DO_AMBIENTE : ["instagram"];
 export const REDE_ROTULO: Record<Rede, string> = { instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", youtube: "YouTube" };
 
 export const FORMATOS = ["post", "carrossel", "stories", "reels", "video", "short"] as const;
@@ -28,6 +35,9 @@ export const FORMATOS_POR_REDE: Record<Rede, readonly Formato[]> = {
   tiktok: ["video", "reels", "short"],
   youtube: ["video", "short"],
 };
+
+/** Formatos oferecidos nas telas: os aceitos por alguma rede habilitada. */
+export const FORMATOS_ATIVOS: readonly Formato[] = FORMATOS.filter((f) => REDES_ATIVAS.some((r) => FORMATOS_POR_REDE[r].includes(f)));
 
 /** Limites de texto por rede (caracteres). */
 export const LIMITES: Record<Rede, { legenda: number; titulo?: number; hashtags?: number }> = {

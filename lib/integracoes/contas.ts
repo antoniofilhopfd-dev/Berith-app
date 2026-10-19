@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { RowDataPacket } from "mysql2/promise";
 import { execute, query } from "@/lib/db";
 import { assertCan } from "@/lib/permissions";
-import { REDES, type Rede } from "@/lib/editorial";
+import { REDES_ATIVAS, REDE_ROTULO, type Rede } from "@/lib/editorial";
 import { audit } from "@/lib/services/audit";
 import { DomainError } from "@/lib/services/errors";
 import { cifraDisponivel, cifrar, decifrar, mascarar } from "./cripto";
@@ -23,7 +23,7 @@ export type StatusRede = {
 export async function statusRedes(actor: number): Promise<StatusRede[]> {
   await assertCan(actor, "integracoes", "ver");
   const contas = await query<RowDataPacket>("SELECT rede, nome_exibicao, status, expira_em, ultimo_erro, conectada_em FROM redes_contas");
-  return REDES.map((rede) => {
+  return REDES_ATIVAS.map((rede) => {
     const p = provedor(rede);
     const c = contas.find((x) => x.rede === rede);
     const conta = c && c.status !== "desconectada" ? { nome: c.nome_exibicao as string | null, status: c.status as "conectada" | "expirada" | "erro" | "desconectada", expiraEm: c.expira_em as Date | null, ultimoErro: c.ultimo_erro as string | null, conectadaEm: c.conectada_em as Date } : null;
@@ -43,6 +43,7 @@ export const redirectUri = (base: string, rede: Rede) => `${base.replace(/\/$/, 
 
 export async function iniciarConexao(actor: number, rede: Rede, base: string): Promise<string> {
   await assertCan(actor, "integracoes", "gerir");
+  if (!REDES_ATIVAS.includes(rede)) throw new DomainError(`${REDE_ROTULO[rede]} não está habilitado neste app.`);
   const p = provedor(rede);
   if (!p.configurado()) throw new DomainError(`Credenciais do app não configuradas. Defina ${p.variaveis().join(" e ")} no ambiente.`);
   if (!cifraDisponivel()) throw new DomainError("Defina TOKEN_ENC_KEY (mínimo 32 caracteres) antes de conectar redes: os tokens são guardados cifrados.");
@@ -56,6 +57,7 @@ export async function iniciarConexao(actor: number, rede: Rede, base: string): P
 /** Valida o state (uso único, mesmo usuário, mesma rede) e guarda os tokens cifrados. */
 export async function concluirConexao(actor: number, rede: Rede, state: string, code: string, base: string): Promise<{ nome: string }> {
   await assertCan(actor, "integracoes", "gerir");
+  if (!REDES_ATIVAS.includes(rede)) throw new DomainError(`${REDE_ROTULO[rede]} não está habilitado neste app.`);
   const est = (await query<RowDataPacket>("SELECT user_id, rede FROM oauth_estados WHERE state_hash = ? AND expira_em > UTC_TIMESTAMP()", [sha(state)]))[0];
   await execute("DELETE FROM oauth_estados WHERE state_hash = ?", [sha(state)]); // uso único
   if (!est || est.rede !== rede || Number(est.user_id) !== actor) throw new DomainError("Pedido de conexão inválido ou expirado. Tente conectar novamente.");

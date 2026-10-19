@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { FORMATOS, PRIORIDADES, REDES } from "@/lib/editorial";
+import { FORMATOS, PRIORIDADES, REDES_ATIVAS, type Rede } from "@/lib/editorial";
+
+const REDES_ENUM = REDES_ATIVAS as unknown as [Rede, ...Rede[]];
 import { isDate, isTime, localToUtc } from "@/lib/time";
 
 const vazio = <T extends z.ZodTypeAny>(s: T) => z.preprocess((v) => (v === "" || v === undefined || v === null ? null : v), s.nullable());
@@ -16,7 +18,7 @@ export function dataHora(data: string | null | undefined, hora: string | null | 
   return localToUtc(d, hh);
 }
 
-export const redesSchema = z.array(z.enum(REDES)).max(4).transform((a) => [...new Set(a)]);
+export const redesSchema = z.array(z.enum(REDES_ENUM)).max(4).transform((a) => [...new Set(a)]);
 const ids = z.array(z.coerce.number().int().positive()).max(10).transform((a) => [...new Set(a)]);
 
 export const publicacaoSchema = z.object({
@@ -35,7 +37,7 @@ export const publicacaoSchema = z.object({
   observacoes: texto(5000),
   midiaIds: ids,
   // Ajustes por rede (opcionais).
-  redesExtra: z.partialRecord(z.enum(REDES), z.object({ legenda: texto(20000), hashtags: texto(600), tituloExterno: texto(150) })).default({}),
+  redesExtra: z.partialRecord(z.enum(REDES_ENUM), z.object({ legenda: texto(20000), hashtags: texto(600), tituloExterno: texto(150) })).default({}),
 });
 export type PublicacaoInput = z.infer<typeof publicacaoSchema>;
 
@@ -44,7 +46,7 @@ export function lerPublicacao(f: FormData) {
   const g = (k: string) => { const v = f.get(k); return typeof v === "string" ? v : ""; };
   const redes = f.getAll("redes").map(String);
   const redesExtra: Record<string, { legenda: string; hashtags: string; tituloExterno: string }> = {};
-  for (const r of REDES) redesExtra[r] = { legenda: g(`legenda_${r}`), hashtags: g(`hashtags_${r}`), tituloExterno: g(`titulo_${r}`) };
+  for (const r of REDES_ATIVAS) redesExtra[r] = { legenda: g(`legenda_${r}`), hashtags: g(`hashtags_${r}`), tituloExterno: g(`titulo_${r}`) };
   const midiaIds = g("midiaIds").split(",").map((x) => x.trim()).filter(Boolean);
   const d = publicacaoSchema.parse({
     titulo: g("titulo"), descricao: g("descricao"), objetivo: g("objetivo"), formato: g("formato"), redes,
@@ -79,7 +81,7 @@ export const ideiaSchema = z.object({
   descricao: texto(5000), referencias: texto(5000),
   editoriaId: idOpc, campanhaId: idOpc,
   prioridade: z.enum(PRIORIDADES).default("media"),
-  redes: z.array(z.enum(REDES)).default([]).transform((a) => [...new Set(a)]),
+  redes: z.array(z.enum(REDES_ENUM)).default([]).transform((a) => [...new Set(a)]),
 });
 
 export const modeloSchema = z.object({

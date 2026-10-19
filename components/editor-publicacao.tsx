@@ -7,7 +7,7 @@ import { Previa, PreviaFeed, type MidiaPrev } from "./previas";
 import { RedeTag } from "./pub-ui";
 import type { FormAction } from "@/lib/auth/guard";
 import {
-  FORMATOS, FORMATO_ROTULO, FORMATOS_POR_REDE, LIMITES, PRIORIDADES, PRIORIDADE_ROTULO, REDES, REDE_ROTULO,
+  FORMATOS_ATIVOS, FORMATO_ROTULO, FORMATOS_POR_REDE, LIMITES, PRIORIDADES, PRIORIDADE_ROTULO, REDES_ATIVAS, REDE_ROTULO,
   contarCaracteres, normalizarHashtags, problemasDoConteudo, textoDaRede, type Formato, type Prioridade, type Rede,
 } from "@/lib/editorial";
 
@@ -44,7 +44,7 @@ export function EditorPublicacao({ inicial, campanhas, editorias, pessoas, conta
   const sujo = useRef(false);
 
   const setRede = (r: Rede, campo: "legenda" | "hashtags" | "titulo", v: string) => setPorRede((p) => ({ ...p, [r]: { legenda: "", hashtags: "", titulo: "", ...p[r], [campo]: v } }));
-  const alternarRede = (r: Rede) => setRedes((a) => (a.includes(r) ? a.filter((x) => x !== r) : REDES.filter((x) => a.includes(x) || x === r)));
+  const alternarRede = (r: Rede) => setRedes((a) => (a.includes(r) ? a.filter((x) => x !== r) : REDES_ATIVAS.filter((x) => a.includes(x) || x === r)));
 
   const dadosConteudo = useMemo(() => ({
     titulo, formato, legenda: legenda || null, hashtags: hashtags || null,
@@ -78,7 +78,7 @@ export function EditorPublicacao({ inicial, campanhas, editorias, pessoas, conta
 
   const limiteMin = redes.length ? Math.min(...redes.map((r) => LIMITES[r].legenda)) : 2200;
   const usados = contarCaracteres(textoDaRede({ legenda, hashtags }, {}));
-  const formatosPossiveis = FORMATOS.filter((f) => redes.length === 0 || redes.every((r) => FORMATOS_POR_REDE[r].includes(f)));
+  const formatosPossiveis = FORMATOS_ATIVOS.filter((f) => redes.length === 0 || redes.every((r) => FORMATOS_POR_REDE[r].includes(f)));
 
   return (
     <ActionForm action={salvar} submit={inicial.id ? "Salvar alterações" : "Criar como rascunho"} resetOnOk={false} className="space-y-0">
@@ -94,7 +94,7 @@ export function EditorPublicacao({ inicial, campanhas, editorias, pessoas, conta
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Formato">
                   <select name="formato" value={formato} onChange={(e) => setFormato(e.target.value as Formato)} className={inputCls}>
-                    {FORMATOS.map((f) => <option key={f} value={f} disabled={!formatosPossiveis.includes(f) && f !== formato}>{FORMATO_ROTULO[f]}</option>)}
+                    {FORMATOS_ATIVOS.map((f) => <option key={f} value={f} disabled={!formatosPossiveis.includes(f) && f !== formato}>{FORMATO_ROTULO[f]}</option>)}
                   </select>
                 </Field>
                 <Field label="Prioridade"><select name="prioridade" defaultValue={inicial.prioridade} className={inputCls}>{PRIORIDADES.map((p) => <option key={p} value={p}>{PRIORIDADE_ROTULO[p]}</option>)}</select></Field>
@@ -119,7 +119,7 @@ export function EditorPublicacao({ inicial, campanhas, editorias, pessoas, conta
             <section aria-labelledby="sec-redes" className="space-y-3 rounded-xl border border-borda bg-cartao p-4">
               <h2 id="sec-redes" className="text-sm font-semibold uppercase tracking-wide text-tinta/70">Redes sociais</h2>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Redes de publicação">
-                {REDES.map((r) => {
+                {REDES_ATIVAS.map((r) => {
                   const compat = FORMATOS_POR_REDE[r].includes(formato);
                   return (
                     <label key={r} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${redes.includes(r) ? "border-verde bg-verde/10" : "border-borda bg-white"}`}>

@@ -8,7 +8,7 @@ import { opcoesProducao } from "@/lib/services/opcoes";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { Badge, Card, Empty, PageHeader, Tabs } from "@/components/ui";
 import { FormatoTag, PrioridadeTag, RedesTags, StatusBadge } from "@/components/pub-ui";
-import { PRIORIDADES, PRIORIDADE_ROTULO, REDES, REDE_ROTULO } from "@/lib/editorial";
+import { PRIORIDADES, PRIORIDADE_ROTULO, REDES_ATIVAS, REDE_ROTULO } from "@/lib/editorial";
 import { navegar, periodo } from "@/lib/calendario";
 import { DIAS, MESES, brDate, isDate, localToUtc, utcToLocal } from "@/lib/time";
 import { formatDateTime } from "@/lib/format";
@@ -55,7 +55,7 @@ async function Periodo({ aba, d, user }: { aba: "semana" | "mes"; d?: string; us
   const [a, m] = ancora.split("-").map(Number);
   const titulo = visao === "mes" ? `${MESES[m - 1]} de ${a}` : `${brDate(inicio).slice(0, 5)} a ${brDate(dias[6]).slice(0, 5)}`;
   const mesRef = ancora.slice(0, 7);
-  const porRede = REDES.map((r) => [r, ativos.filter((p) => p.redes.includes(r)).length] as const).filter(([, n]) => n > 0);
+  const porRede = REDES_ATIVAS.map((r) => [r, ativos.filter((p) => p.redes.includes(r)).length] as const).filter(([, n]) => n > 0);
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -146,7 +146,7 @@ async function Ideias({ user, podeCriar, podeEditar }: { user: number; podeCriar
               <Field label="Campanha"><select name="campanhaId" className={inputCls}><option value="">—</option>{op.campanhas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></Field>
               <Field label="Prioridade"><select name="prioridade" defaultValue="media" className={inputCls}>{PRIORIDADES.map((p) => <option key={p} value={p}>{PRIORIDADE_ROTULO[p]}</option>)}</select></Field>
             </div>
-            <fieldset className="flex flex-wrap gap-3"><legend className="mb-1 text-sm font-medium">Redes sugeridas</legend>{REDES.map((r) => <label key={r} className="flex items-center gap-1 text-sm"><input type="checkbox" name="redes" value={r} className="h-4 w-4" />{REDE_ROTULO[r]}</label>)}</fieldset>
+            <fieldset className="flex flex-wrap gap-3"><legend className="mb-1 text-sm font-medium">Redes sugeridas</legend>{REDES_ATIVAS.map((r) => <label key={r} className="flex items-center gap-1 text-sm"><input type="checkbox" name="redes" value={r} className="h-4 w-4" />{REDE_ROTULO[r]}</label>)}</fieldset>
             <Field label="Referências"><textarea name="referencias" rows={2} className={inputCls + " py-2"} /></Field>
           </ActionForm>
         </Card>

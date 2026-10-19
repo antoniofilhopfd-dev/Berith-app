@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ActionForm, Field, inputCls } from "./action-form";
 import { corDoFormato } from "./pub-ui";
-import { FORMATOS, FORMATO_ROTULO, REDES, REDE_ROTULO, STATUS_ROTULO, type Formato, type Rede, type Status } from "@/lib/editorial";
+import { FORMATOS_ATIVOS, FORMATO_ROTULO, REDES_ATIVAS, REDE_ROTULO, STATUS_ROTULO, type Formato, type Rede, type Status } from "@/lib/editorial";
 import type { Visao } from "@/lib/calendario";
 import { DIAS, DIAS_CURTOS, brDate } from "@/lib/time";
 import type { FormAction } from "@/lib/auth/guard";
@@ -118,8 +118,8 @@ export function Calendario({ visao, dias, hoje, podeCriar, mover, criarRapida }:
             <ActionForm action={criarRapida} submit="Criar e abrir">
               <input type="hidden" name="dia" value={novoDia} />
               <Field label="Título interno"><input name="titulo" required minLength={2} maxLength={160} autoFocus className={inputCls} /></Field>
-              <Field label="Formato"><select name="formato" defaultValue="post" className={inputCls}>{FORMATOS.map((f) => <option key={f} value={f}>{FORMATO_ROTULO[f]}</option>)}</select></Field>
-              <fieldset className="flex flex-wrap gap-3"><legend className="mb-1 text-sm font-medium">Redes</legend>{REDES.map((r) => <label key={r} className="flex items-center gap-1 text-sm"><input type="checkbox" name="redes" value={r} defaultChecked={r === "instagram"} className="h-4 w-4" />{REDE_ROTULO[r]}</label>)}</fieldset>
+              <Field label="Formato"><select name="formato" defaultValue="post" className={inputCls}>{FORMATOS_ATIVOS.map((f) => <option key={f} value={f}>{FORMATO_ROTULO[f]}</option>)}</select></Field>
+              <fieldset className="flex flex-wrap gap-3"><legend className="mb-1 text-sm font-medium">Redes</legend>{REDES_ATIVAS.map((r) => <label key={r} className="flex items-center gap-1 text-sm"><input type="checkbox" name="redes" value={r} defaultChecked={r === "instagram"} className="h-4 w-4" />{REDE_ROTULO[r]}</label>)}</fieldset>
               <p className="text-xs text-tinta/60">Cria um rascunho com a data prevista. O restante você completa no editor.</p>
             </ActionForm>
           </div>

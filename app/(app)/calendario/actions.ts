@@ -12,7 +12,7 @@ import { DomainError, NotFoundError } from "@/lib/services/errors";
 import { ForbiddenError } from "@/lib/permissions";
 import { lerConfig } from "@/lib/services/configuracoes";
 import { redirect } from "next/navigation";
-import { REDES } from "@/lib/editorial";
+import { REDES_ATIVAS } from "@/lib/editorial";
 
 /** Arrastar e soltar: move a publicação para outro dia mantendo o horário. */
 export async function moverPublicacaoAction(id: number, dia: string): Promise<{ erro?: string }> {
@@ -36,7 +36,7 @@ export const criarRapidaAction = guarded(async (u, f) => {
   const cfg = await lerConfig();
   const fd = new FormData();
   fd.set("titulo", String(f.get("titulo") ?? "")); fd.set("formato", String(f.get("formato") ?? "post"));
-  for (const r of f.getAll("redes")) if (REDES.includes(r as never)) fd.append("redes", String(r));
+  for (const r of f.getAll("redes")) if (REDES_ATIVAS.includes(r as never)) fd.append("redes", String(r));
   fd.set("hashtags", cfg.hashtagsPadrao);
   const { dados } = lerPublicacao(fd);
   const hora = cfg.horariosSugeridos[0] ?? "09:00";

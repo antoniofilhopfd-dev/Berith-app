@@ -7,7 +7,7 @@ import { datasDoPeriodo } from "@/lib/services/planejamento";
 import { opcoesProducao } from "@/lib/services/opcoes";
 import { Calendario, type DiaCal } from "@/components/calendario";
 import { PageHeader, btnSec } from "@/components/ui";
-import { REDES, STATUS, textoDaRede, type Rede, type Status } from "@/lib/editorial";
+import { REDES_ATIVAS, STATUS, textoDaRede, type Rede, type Status } from "@/lib/editorial";
 import { navegar, periodo, type Visao } from "@/lib/calendario";
 import { MESES, DIAS, isDate, localToUtc, utcToLocal } from "@/lib/time";
 import { criarRapidaAction, moverPublicacaoAction } from "./actions";
@@ -23,7 +23,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
   const hoje = utcToLocal(new Date()).date;
   const ancora = sp.d && isDate(sp.d) ? sp.d : hoje;
   const { inicio, fim, dias, mesRef } = periodo(visao, ancora);
-  const rede = REDES.includes(sp.rede as Rede) ? (sp.rede as Rede) : undefined;
+  const rede = REDES_ATIVAS.includes(sp.rede as Rede) ? (sp.rede as Rede) : undefined;
   const status = STATUS.includes(sp.status as Status) ? (sp.status as Status) : undefined;
   const resp = sp.resp && Number(sp.resp) > 0 ? Number(sp.resp) : undefined;
   const [perms, op] = await Promise.all([permissoesDe(user.id), opcoesProducao(user.id)]);
@@ -70,7 +70,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
       </div>
       <form method="get" className="mb-4 flex flex-wrap items-center gap-2" aria-label="Filtros do calendário">
         <input type="hidden" name="view" value={visao} /><input type="hidden" name="d" value={ancora} />
-        <select name="rede" defaultValue={sp.rede ?? ""} aria-label="Rede social" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todas as redes</option>{REDES.map((r) => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}</select>
+        <select name="rede" defaultValue={sp.rede ?? ""} aria-label="Rede social" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todas as redes</option>{REDES_ATIVAS.map((r) => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}</select>
         <select name="resp" defaultValue={sp.resp ?? ""} aria-label="Responsável" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todos os responsáveis</option>{op.pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
         <select name="status" defaultValue={sp.status ?? ""} aria-label="Situação" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todas as situações</option>{STATUS.filter((s) => s !== "cancelado").map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select>
         <button className="min-h-10 rounded-lg bg-verde px-4 text-sm text-white">Filtrar</button>

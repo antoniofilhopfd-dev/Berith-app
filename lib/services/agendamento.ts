@@ -1,7 +1,7 @@
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { comTrava, execute, query, tx } from "@/lib/db";
 import { assertCan, ForbiddenError } from "@/lib/permissions";
-import { problemasDoConteudo, textoDaRede, type Formato, type Rede, type Status } from "@/lib/editorial";
+import { REDES_ATIVAS, problemasDoConteudo, textoDaRede, type Formato, type Rede, type Status } from "@/lib/editorial";
 import { audit } from "./audit";
 import { DomainError, NotFoundError } from "./errors";
 import { destinatariosCom, notificar, notificarSeguro } from "./notificacoes";
@@ -309,7 +309,7 @@ export async function coletarMetricas(agora = new Date()): Promise<{ publicacoes
       }
     } catch (e) { await logIntegracao(rede, "aviso", "metricas_falhou", e instanceof Error ? e.message : "erro"); }
   }
-  for (const rede of ["instagram", "facebook", "tiktok", "youtube"] as Rede[]) {
+  for (const rede of REDES_ATIVAS) {
     const ca = contas.get(rede) ?? (await contaAtiva(rede, agora));
     if ("erro" in ca) continue;
     try {
