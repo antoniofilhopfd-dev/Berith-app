@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { baseUrl } from "@/lib/auth/guard";
 import { concluirConexao } from "@/lib/integracoes/contas";
-import { REDES, type Rede } from "@/lib/editorial";
+import { REDES_ATIVAS, type Rede } from "@/lib/editorial";
 import { DomainError } from "@/lib/services/errors";
 import { ForbiddenError } from "@/lib/permissions";
 
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ rede
   const user = await getSessionUser();
   if (!user) return NextResponse.redirect(`${base}/login`);
   const rede = (await params).rede as Rede;
-  if (!REDES.includes(rede)) return voltar("erro=" + encodeURIComponent("Rede desconhecida."));
+  if (!REDES_ATIVAS.includes(rede)) return voltar("erro=" + encodeURIComponent("Rede desconhecida."));
   const sp = req.nextUrl.searchParams;
   if (sp.get("error")) return voltar("erro=" + encodeURIComponent("A autorização foi negada ou cancelada na rede social."));
   const code = sp.get("code"), state = sp.get("state");

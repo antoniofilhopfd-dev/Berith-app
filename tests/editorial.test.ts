@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { vi, describe, it, expect } from "vitest";
 import { contarCaracteres, diffPalavras, normalizarHashtags, problemasDoConteudo, textoDaRede, TRANSICOES, STATUS, type DadosConteudo } from "@/lib/editorial";
 import { datasNoPeriodo, pascoa } from "@/lib/datas";
 import { dataHora, lerPublicacao } from "@/lib/validation/editorial";
@@ -110,5 +110,19 @@ describe("formulário da produção", () => {
     expect(() => lerPublicacao(f)).toThrow();
     const g = new FormData(); g.set("titulo", "ok título"); g.set("formato", "gif");
     expect(() => lerPublicacao(g)).toThrow();
+  });
+});
+
+describe("redes habilitadas", () => {
+  it("por padrão o produto usa só o Instagram (telas e formatos)", async () => {
+    const antes = process.env.REDES_ATIVAS;
+    delete process.env.REDES_ATIVAS;
+    vi.resetModules();
+    try {
+      const m = await import("@/lib/editorial");
+      expect(m.REDES_ATIVAS).toEqual(["instagram"]);
+      expect(m.FORMATOS_ATIVOS).toEqual(["post", "carrossel", "stories", "reels"]); // sem vídeo longo/shorts (não existem no Instagram)
+      expect(m.REDES).toContain("facebook"); // dados antigos continuam legíveis
+    } finally { if (antes !== undefined) process.env.REDES_ATIVAS = antes; vi.resetModules(); }
   });
 });

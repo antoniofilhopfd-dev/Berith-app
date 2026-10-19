@@ -7,7 +7,7 @@ import { opcoesProducao } from "@/lib/services/opcoes";
 import { Card, Empty, LinkButton, PageHeader, btnSec } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
 import { FormatoTag, PrioridadeTag, RedesTags, StatusBadge } from "@/components/pub-ui";
-import { REDES, STATUS, STATUS_ROTULO, type Rede, type Status } from "@/lib/editorial";
+import { REDES_ATIVAS, STATUS, STATUS_ROTULO, type Rede, type Status } from "@/lib/editorial";
 import { formatDateTime } from "@/lib/format";
 import { agoraMs } from "@/lib/time";
 import { enviarRevisaoAction, iniciarProducaoAction } from "./actions";
@@ -23,7 +23,7 @@ export default async function ProducaoLista({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const visao = sp.v === "lista" ? "lista" : "kanban";
   const status = STATUS.includes(sp.status as Status) ? (sp.status as Status) : undefined;
-  const rede = REDES.includes(sp.rede as Rede) ? (sp.rede as Rede) : undefined;
+  const rede = REDES_ATIVAS.includes(sp.rede as Rede) ? (sp.rede as Rede) : undefined;
   const num = (v?: string) => (v && Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : undefined);
   const [op, perms] = await Promise.all([opcoesProducao(user.id), permissoesDe(user.id)]);
   const lista = await P.listar(user.id, {
@@ -63,7 +63,7 @@ export default async function ProducaoLista({ searchParams }: { searchParams: Pr
       <form method="get" className="mb-5 grid gap-2 rounded-xl border border-borda bg-cartao p-3 sm:grid-cols-3 lg:grid-cols-6" aria-label="Filtros">
         <input type="hidden" name="v" value={visao} />
         <input name="q" type="search" defaultValue={sp.q ?? ""} placeholder="Buscar título ou legenda" aria-label="Buscar" className="min-h-10 rounded-lg border border-borda px-3 text-sm lg:col-span-2" />
-        <select name="rede" defaultValue={sp.rede ?? ""} aria-label="Rede social" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todas as redes</option>{REDES.map((r) => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}</select>
+        <select name="rede" defaultValue={sp.rede ?? ""} aria-label="Rede social" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todas as redes</option>{REDES_ATIVAS.map((r) => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}</select>
         <select name="resp" defaultValue={sp.resp ?? ""} aria-label="Responsável" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todos os responsáveis</option>{op.pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
         <select name="camp" defaultValue={sp.camp ?? ""} aria-label="Campanha" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todas as campanhas</option>{op.campanhas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
         <select name="edit" defaultValue={sp.edit ?? ""} aria-label="Editoria" className="min-h-10 rounded-lg border border-borda px-2 text-sm"><option value="">Todas as editorias</option>{op.editorias.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>

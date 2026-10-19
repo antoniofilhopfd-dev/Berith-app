@@ -2,6 +2,8 @@
 
 O app usa **somente as APIs oficiais** de cada plataforma. Nada é simulado: sem conta conectada, a publicação não acontece sozinha e o fluxo cai na **publicação assistida** (a pessoa publica na rede e confirma no app). Métricas só aparecem quando vêm da própria plataforma; o que a API não fornece aparece como “indisponível”.
 
+> **Redes habilitadas: só o Instagram.** Facebook, TikTok e YouTube foram retirados das telas, formulários, conexão e coleta (`REDES_ATIVAS` em `lib/editorial.ts`). O código dessas integrações e os dados já gravados continuam no repositório/banco; para reativar uma rede, inclua-a em `REDES_ATIVAS`. A Meta usa o mesmo app para Instagram e Facebook, então o passo a passo abaixo da Meta continua valendo para o Instagram.
+
 ## Estado da implementação
 
 | Rede | Autenticação | Publicação | Métricas | Testado contra a API real? |
