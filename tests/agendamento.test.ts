@@ -277,6 +277,19 @@ describe("métricas e lembretes", () => {
     expect((await A.coletarMetricas(EM(12 + 7 * 60))).postsConta).toBe(2);
     expect((await query<any>("SELECT COUNT(*) n FROM posts_externos"))[0].n).toBe(2); // atualiza, não duplica
   });
+  it("atualização manual ignora a janela de 6 h, exige permissão e mostra o erro da rede", async () => {
+    await conectar("instagram");
+    expect(await A.sincronizarContaAgora(e.coord, "instagram", EM(14))).toEqual({ posts: 2, erro: undefined });
+    expect((await A.sincronizarContaAgora(e.coord, "instagram", EM(15))).posts).toBe(2); // de novo, sem esperar 6 h
+    await expect(A.sincronizarContaAgora(e.semPerfil, "instagram", EM(15))).rejects.toBeInstanceOf(ForbiddenError);
+    definirProvedores({ instagram: { ...falso("instagram"), listarPostsConta: async () => { throw new Error("HTTP 400: (#10) Permissão ausente"); } } });
+    expect(await A.sincronizarContaAgora(e.coord, "instagram", EM(16))).toMatchObject({ posts: 0, erro: expect.stringContaining("Permissão ausente") });
+    definirProvedores({ instagram: { ...falso("instagram"), listarPostsConta: async () => [] } });
+    expect((await A.sincronizarContaAgora(e.coord, "instagram", EM(17))).erro).toMatch(/não devolveu nenhum post/);
+    definirProvedores({ instagram: falso("instagram"), facebook: falso("facebook") });
+    await execute("DELETE FROM redes_contas");
+    expect((await A.sincronizarContaAgora(e.coord, "instagram", EM(18))).erro).toMatch(/não conectada/i);
+  });
   it("não coleta de publicação assistida", async () => {
     await execute("DELETE FROM metricas_publicacao");
     const id = await aprovada({ redes: ["facebook"] });

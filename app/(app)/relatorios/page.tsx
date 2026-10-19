@@ -6,6 +6,8 @@ import { METRICAS, METRICA_ROTULO, ROTULO_TIPO, REDES_RELATORIO, gerarRelatorio,
 import { Badge, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { FormatoTag, RedeTag } from "@/components/pub-ui";
 import { nomesContas } from "@/lib/integracoes/contas";
+import { ActionForm } from "@/components/action-form";
+import { atualizarInstagramAction } from "./actions";
 import { DomainError } from "@/lib/services/errors";
 import { FORMATO_ROTULO, REDE_ROTULO } from "@/lib/editorial";
 import { addDays, brDate, utcToLocal } from "@/lib/time";
@@ -37,6 +39,11 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
       <PageHeader titulo="Relatórios orgânicos" sub={`${contas.instagram ? `Conta: ${contas.instagram}. ` : "Nenhuma conta do Instagram conectada. "}Apenas métricas oficiais da plataforma — nada é estimado ou inventado.`}>
         {perms.has("relatorios:exportar") && rel && <><a href={`/api/relatorios/exportar?formato=pdf&${qs}`} className="inline-flex min-h-10 items-center rounded-lg bg-verde px-4 text-sm text-white">Exportar PDF</a><a href={`/api/relatorios/exportar?formato=xlsx&${qs}`} className="inline-flex min-h-10 items-center rounded-lg border border-borda bg-white px-4 text-sm hover:bg-fundo">Exportar Excel</a></>}
       </PageHeader>
+      {contas.instagram && (
+        <ActionForm action={atualizarInstagramAction} submit="Atualizar dados do Instagram agora" resetOnOk={false} className="rounded-xl border border-borda bg-cartao p-3">
+          <p className="text-xs text-tinta/60">Busca agora na Meta os posts, seguidores e alcance de {contas.instagram}. O agendador faz isso sozinho de tempos em tempos; use este botão para ver na hora (ou para ver o motivo, se a Meta recusar).</p>
+        </ActionForm>
+      )}
       <form method="get" className="flex flex-wrap items-end gap-2 rounded-xl border border-borda bg-cartao p-3" aria-label="Período">
         <label className="text-xs">De<input type="date" name="de" defaultValue={de} className="mt-1 block min-h-10 rounded-lg border border-borda px-2 text-sm" /></label>
         <label className="text-xs">Até<input type="date" name="ate" defaultValue={ate} className="mt-1 block min-h-10 rounded-lg border border-borda px-2 text-sm" /></label>

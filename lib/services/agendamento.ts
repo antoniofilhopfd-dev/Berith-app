@@ -1,7 +1,7 @@
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { comTrava, execute, query, tx } from "@/lib/db";
 import { assertCan, ForbiddenError } from "@/lib/permissions";
-import { REDES_ATIVAS, problemasDoConteudo, textoDaRede, type Formato, type Rede, type Status } from "@/lib/editorial";
+import { REDES_ATIVAS, REDE_ROTULO, problemasDoConteudo, textoDaRede, type Formato, type Rede, type Status } from "@/lib/editorial";
 import { audit } from "./audit";
 import { DomainError, NotFoundError } from "./errors";
 import { destinatariosCom, notificar, notificarSeguro } from "./notificacoes";
@@ -321,18 +321,21 @@ export async function coletarMetricas(agora = new Date()): Promise<{ publicacoes
         out.contas++;
       }
     } catch (e) { await logIntegracao(rede, "aviso", "metricas_conta_falhou", e instanceof Error ? e.message : "erro"); }
-    out.postsConta += await importarPostsDaConta(rede, ca.conta, agora);
+    out.postsConta += (await importarPostsDaConta(rede, ca.conta, agora)).n;
   }
   return out;
 }
 
 /** Importa os posts recentes da conta inteira (inclusive os feitos fora do app). No máximo a cada 6 h por rede. */
 const JANELA_POSTS_DIAS = 90, LIMITE_POSTS = 60;
-async function importarPostsDaConta(rede: Rede, conta: Parameters<ReturnType<typeof provedor>["metricasConta"]>[0], agora: Date): Promise<number> {
+type ContaDaRede = Parameters<ReturnType<typeof provedor>["metricasConta"]>[0];
+async function importarPostsDaConta(rede: Rede, conta: ContaDaRede, agora: Date, forcar = false): Promise<{ n: number; erro?: string }> {
   const prov = provedor(rede);
-  if (!prov.listarPostsConta) return 0;
-  const recente = await query<RowDataPacket>("SELECT 1 FROM posts_externos WHERE rede = ? AND coletado_em > DATE_SUB(?, INTERVAL 6 HOUR) LIMIT 1", [rede, agora]);
-  if (recente.length) return 0;
+  if (!prov.listarPostsConta) return { n: 0 };
+  if (!forcar) {
+    const recente = await query<RowDataPacket>("SELECT 1 FROM posts_externos WHERE rede = ? AND coletado_em > DATE_SUB(?, INTERVAL 6 HOUR) LIMIT 1", [rede, agora]);
+    if (recente.length) return { n: 0 };
+  }
   try {
     const desde = new Date(agora.getTime() - JANELA_POSTS_DIAS * 86_400_000);
     const posts = await prov.listarPostsConta(conta, desde, LIMITE_POSTS);
@@ -345,8 +348,27 @@ async function importarPostsDaConta(rede: Rede, conta: Parameters<ReturnType<typ
         [rede, p.idExterno, p.tipo, p.legenda?.slice(0, 2000) ?? null, p.url, p.publicadoEm, p.alcance ?? null, p.curtidas ?? null, p.comentarios ?? null, p.compartilhamentos ?? null, p.salvamentos ?? null, p.visualizacoes ?? null, agora]);
     }
     if (posts.length) await logIntegracao(rede, "info", "posts_importados", `${posts.length} post(s) da conta atualizados`);
-    return posts.length;
-  } catch (e) { await logIntegracao(rede, "aviso", "posts_conta_falhou", e instanceof Error ? e.message : "erro"); return 0; }
+    return { n: posts.length };
+  } catch (e) {
+    const msg = mascarar(e instanceof Error ? e.message : "erro");
+    await logIntegracao(rede, "aviso", "posts_conta_falhou", msg);
+    return { n: 0, erro: msg };
+  }
+}
+
+/** Atualiza agora os dados da conta (seguidores, alcance e posts), sem esperar o agendador. Mostra o erro da rede, se houver. */
+export async function sincronizarContaAgora(actor: number, rede: Rede, agora = new Date()): Promise<{ posts: number; erro?: string }> {
+  await assertCan(actor, "relatorios", "ver");
+  const ca = await contaAtiva(rede, agora);
+  if ("erro" in ca) return { posts: 0, erro: ca.erro };
+  try {
+    const m = await provedor(rede).metricasConta(ca.conta);
+    if (m) await execute("INSERT INTO metricas_conta (rede, dia, seguidores, alcance, visualizacoes) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE seguidores = VALUES(seguidores), alcance = VALUES(alcance), visualizacoes = VALUES(visualizacoes)",
+      [rede, utcToLocal(agora).date, m.seguidores ?? null, m.alcance ?? null, m.visualizacoes ?? null]);
+  } catch (e) { await logIntegracao(rede, "aviso", "metricas_conta_falhou", e instanceof Error ? e.message : "erro"); }
+  const r = await importarPostsDaConta(rede, ca.conta, agora, true);
+  if (!r.erro && r.n === 0) return { posts: 0, erro: `A ${REDE_ROTULO[rede]} não devolveu nenhum post dos últimos ${JANELA_POSTS_DIAS} dias para a conta conectada.` };
+  return { posts: r.n, erro: r.erro };
 }
 
 /* ================= Lembretes (geram notificações internas; o push as entrega) ================= */
