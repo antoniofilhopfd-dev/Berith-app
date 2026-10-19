@@ -31,6 +31,10 @@ const falso = (rede: Rede): Provedor => ({
   },
   metricasPublicacao: async () => ({ alcance: 100, curtidas: 10, comentarios: 2, visualizacoes: 300 }),
   metricasConta: async () => ({ seguidores: 1234 }),
+  listarPostsConta: async () => [
+    { idExterno: "ig-a", tipo: "REELS", legenda: "Reel do retiro", url: "https://www.instagram.com/reel/a/", publicadoEm: new Date("2026-10-18T15:00:00Z"), alcance: 900, curtidas: 50, comentarios: 5, compartilhamentos: 4, salvamentos: 6, visualizacoes: 1200 },
+    { idExterno: "ig-b", tipo: "IMAGE", legenda: "Post feito direto no Instagram", url: "https://www.instagram.com/p/b/", publicadoEm: new Date("2026-10-10T12:00:00Z"), curtidas: 12, comentarios: 1 },
+  ],
 });
 
 async function conectar(rede: Rede, expira: Date | null = null) {
@@ -257,11 +261,21 @@ describe("métricas e lembretes", () => {
     await conectar("instagram");
     const id = await aprovada({ redes: ["instagram"] }); await A.agendar(e.coord, id, EM(10), AGORA);
     await A.processarFila("https://x.org", EM(11));
-    expect(await A.coletarMetricas(EM(12))).toEqual({ publicacoes: 1, contas: 1 });
+    expect(await A.coletarMetricas(EM(12))).toEqual({ publicacoes: 1, contas: 1, postsConta: 2 });
     expect(await A.coletarMetricas(EM(13))).toMatchObject({ publicacoes: 0 });
     const m = (await query<any>("SELECT alcance, curtidas, salvamentos FROM metricas_publicacao"))[0];
     expect(m).toMatchObject({ alcance: 100, curtidas: 10, salvamentos: null }); // não informada → NULL (nunca zero inventado)
     expect((await query<any>("SELECT seguidores FROM metricas_conta WHERE rede='instagram'"))[0].seguidores).toBe(1234);
+  });
+  it("importa os posts da conta inteira (inclusive os feitos fora do app), sem repetir em 6 horas e sem inventar métricas", async () => {
+    await conectar("instagram");
+    const posts = await query<any>("SELECT id_externo, tipo, alcance, curtidas, salvamentos FROM posts_externos ORDER BY id_externo");
+    expect(posts.map((p) => p.id_externo)).toEqual(["ig-a", "ig-b"]);
+    expect(posts[0]).toMatchObject({ tipo: "REELS", alcance: 900, curtidas: 50, salvamentos: 6 });
+    expect(posts[1]).toMatchObject({ alcance: null, salvamentos: null, curtidas: 12 }); // não informada → NULL
+    expect((await A.coletarMetricas(EM(13))).postsConta).toBe(0);
+    expect((await A.coletarMetricas(EM(12 + 7 * 60))).postsConta).toBe(2);
+    expect((await query<any>("SELECT COUNT(*) n FROM posts_externos"))[0].n).toBe(2); // atualiza, não duplica
   });
   it("não coleta de publicação assistida", async () => {
     await execute("DELETE FROM metricas_publicacao");

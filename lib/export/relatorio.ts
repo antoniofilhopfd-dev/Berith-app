@@ -1,5 +1,5 @@
 import { FORMATO_ROTULO, REDE_ROTULO } from "@/lib/editorial";
-import { METRICAS, METRICA_ROTULO, textoCelula, type Relatorio } from "@/lib/services/relatorios";
+import { METRICAS, METRICA_ROTULO, textoCelula, type Relatorio, type RelatorioConta } from "@/lib/services/relatorios";
 import { utcToLocal } from "@/lib/time";
 import type { Planilha } from "./xlsx";
 import type { DocumentoPdf } from "./pdf";
@@ -10,7 +10,7 @@ const when = (d: Date) => { const l = utcToLocal(new Date(d)); return `${br(l.da
 
 export const NOTA_METRICAS = "Somente métricas oficiais das plataformas. 'indisponível' = a API não fornece; 'não conectada' = rede sem conta conectada; 'sem dados' = conectada, mas ainda sem coleta.";
 
-export function paraPlanilhas(r: Relatorio): Planilha[] {
+export function paraPlanilhas(r: Relatorio, conta?: RelatorioConta): Planilha[] {
   const resumo: Planilha = {
     nome: "Resumo", larguras: [22, 14, 14, ...METRICAS.map(() => 16)],
     linhas: [
@@ -33,10 +33,22 @@ export function paraPlanilhas(r: Relatorio): Planilha[] {
         ...METRICAS.map((m) => { const a = x.metricas[m], b = x.anterior?.[m]; return [`${REDE_ROTULO[x.rede]} · ${METRICA_ROTULO[m]}`, a.estado === "valor" ? a.valor : textoCelula(a), b ? (b.estado === "valor" ? b.valor : textoCelula(b)) : "", a.estado === "valor" && b?.estado === "valor" && b.valor ? Math.round(((a.valor - b.valor) / b.valor) * 100) : ""] as (string | number)[]; })])],
   } : null;
   const formatos: Planilha = { nome: "Formatos", larguras: [18, 14], linhas: [["Formato", "Publicadas"], ...r.formatos.map((f) => [FORMATO_ROTULO[f.formato], f.publicadas])] };
-  return [resumo, pubs, ...(comp ? [comp] : []), formatos];
+  const todos: Planilha | null = conta && conta.posts.length ? {
+    nome: "Posts da conta", larguras: [14, 12, 18, 50, ...METRICAS.map(() => 14), 40],
+    linhas: [["Rede", "Tipo", "Publicado em", "Legenda", ...METRICAS.map((m) => METRICA_ROTULO[m]), "Link"],
+      ...conta.posts.map((p) => [REDE_ROTULO[p.rede], p.tipo ?? "", when(p.publicado_em), (p.legenda ?? "").replace(/\s+/g, " ").slice(0, 200), ...METRICAS.map((m) => p.valores[m] ?? ""), p.url ?? ""])],
+  } : null;
+  const rank: Planilha | null = conta && conta.ranking.length ? {
+    nome: "Ranking Instagram", larguras: [6, 14, 18, 50, 14, 14, 40],
+    linhas: [["#", "Tipo", "Publicado em", "Legenda", "Interações", "Alcance", "Link"],
+      ...conta.ranking.map((p, i) => [i + 1, p.tipo ?? "", when(p.publicado_em), (p.legenda ?? "").replace(/\s+/g, " ").slice(0, 200), p.interacoes, p.valores.alcance ?? "", p.url ?? ""]),
+      [], ["Interações = curtidas + comentários + compartilhamentos + salvamentos."],
+      ...(conta.horarios.melhor ? [[`Melhor dia/horário: ${conta.horarios.melhor.dia}, ${String(conta.horarios.melhor.hora).padStart(2, "0")}h (confiança ${conta.horarios.melhor.confianca}; ${conta.horarios.amostra} posts)`]] : [])],
+  } : null;
+  return [resumo, pubs, ...(rank ? [rank] : []), ...(todos ? [todos] : []), ...(comp ? [comp] : []), formatos];
 }
 
-export function paraPdf(r: Relatorio, ministerio: string): DocumentoPdf {
+export function paraPdf(r: Relatorio, ministerio: string, conta?: RelatorioConta): DocumentoPdf {
   const fm = (c: ReturnType<typeof textoCelula> | string) => String(c);
   return {
     titulo: "Relatório de desempenho orgânico", subtitulo: `${ministerio} · ${br(r.de)} a ${br(r.ate)}`,
@@ -46,6 +58,8 @@ export function paraPdf(r: Relatorio, ministerio: string): DocumentoPdf {
         linhas: r.redes.map((x) => [REDE_ROTULO[x.rede], String(x.publicadas), ...(["alcance", "curtidas", "comentarios", "compartilhamentos", "salvamentos", "visualizacoes"] as const).map((m) => fm(textoCelula(x.metricas[m])))]) },
       { titulo: "Seguidores", colunas: [{ rotulo: "Rede", largura: 90 }, { rotulo: "Início", largura: 70, alinhar: "dir" }, { rotulo: "Fim", largura: 70, alinhar: "dir" }, { rotulo: "Variação", largura: 70, alinhar: "dir" }],
         linhas: r.redes.map((x) => [REDE_ROTULO[x.rede], x.seguidores.inicio == null ? "sem dados" : String(x.seguidores.inicio), x.seguidores.fim == null ? "sem dados" : String(x.seguidores.fim), x.seguidores.variacao == null ? "-" : String(x.seguidores.variacao)]) },
+      ...(conta && conta.posts.length ? [{ titulo: "Posts da conta (inclusive fora do app)", colunas: [{ rotulo: "Legenda", largura: 150 }, { rotulo: "Rede", largura: 50 }, { rotulo: "Data", largura: 70 }, { rotulo: "Alcance", largura: 45, alinhar: "dir" as const }, { rotulo: "Curt.", largura: 38, alinhar: "dir" as const }, { rotulo: "Coment.", largura: 42, alinhar: "dir" as const }, { rotulo: "Visual.", largura: 45, alinhar: "dir" as const }],
+        linhas: conta.posts.map((p) => [(p.legenda ?? "(sem legenda)").replace(/\s+/g, " ").slice(0, 40), REDE_ROTULO[p.rede], when(p.publicado_em).slice(0, 5), ...(["alcance", "curtidas", "comentarios", "visualizacoes"] as const).map((m) => (p.valores[m] == null ? "-" : String(p.valores[m])))]) }] : []),
       { titulo: "Desempenho por publicação", colunas: [{ rotulo: "Título", largura: 150 }, { rotulo: "Rede", largura: 50 }, { rotulo: "Data", largura: 70 }, { rotulo: "Alcance", largura: 45, alinhar: "dir" }, { rotulo: "Curt.", largura: 38, alinhar: "dir" }, { rotulo: "Coment.", largura: 42, alinhar: "dir" }, { rotulo: "Visual.", largura: 45, alinhar: "dir" }],
         linhas: r.publicacoes.map((p) => [p.titulo, REDE_ROTULO[p.rede], when(p.publicada_em).slice(0, 5), ...(["alcance", "curtidas", "comentarios", "visualizacoes"] as const).map((m) => (p.valores[m] == null ? "-" : String(p.valores[m])))]) },
     ],

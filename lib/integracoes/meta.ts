@@ -1,6 +1,6 @@
 import type { Formato, Rede } from "@/lib/editorial";
 import { chamar, erroPlataforma, num, obj, str, urlDaPlataformaValida } from "./http";
-import type { ConteudoPublicar, ContaAtiva, MetricasColetadas, MetricasConta, Provedor, ResultadoPublicacao, TokensOAuth, PerfilConta } from "./tipos";
+import type { ConteudoPublicar, ContaAtiva, MetricasColetadas, MetricasConta, PostExterno, Provedor, ResultadoPublicacao, TokensOAuth, PerfilConta } from "./tipos";
 
 /** Meta (Instagram e Facebook) — Graph API oficial. Versão e bases configuráveis por ambiente. */
 const versao = () => process.env.META_GRAPH_VERSION || "v23.0";
@@ -143,8 +143,51 @@ export const instagram: Provedor = {
   async metricasConta(conta) {
     if (!conta.contaExternaId) return null;
     const r = await get(`/${conta.contaExternaId}`, conta.token, { fields: "followers_count" });
-    const seg = num(obj(r.json).followers_count);
-    return r.status === 200 ? { seguidores: seg } : null;
+    if (r.status !== 200) return null;
+    const m: MetricasConta = { seguidores: num(obj(r.json).followers_count) };
+    // Alcance e visualizações do último dia; se a conta não os fornecer, ficam em branco (nunca estimados).
+    for (const [campo, metrica] of [["alcance", "reach"], ["visualizacoes", "views"]] as const) {
+      const x = await get(`/${conta.contaExternaId}/insights`, conta.token, { metric: metrica, period: "day", metric_type: "total_value" });
+      const v = x.status === 200 ? valorInsight(x.json) : null;
+      if (v != null) m[campo] = v;
+    }
+    return m;
+  },
+  async listarPostsConta(conta, desde, limite) {
+    if (!conta.contaExternaId) return [];
+    const out: PostExterno[] = [];
+    let url: string | null = null;
+    let primeira = true;
+    while (out.length < limite) {
+      const r: Awaited<ReturnType<typeof get>> = primeira
+        ? await get(`/${conta.contaExternaId}/media`, conta.token, { fields: "id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count", limit: String(Math.min(50, limite)) })
+        : await chamar(url!);
+      primeira = false;
+      if (r.status !== 200) throw new Error(erroPlataforma(r.json, r.texto, r.status));
+      const lote = Array.isArray(obj(r.json).data) ? (obj(r.json).data as unknown[]).map(obj) : [];
+      let passouDoLimite = false;
+      for (const p of lote) {
+        const id = str(p.id), ts = str(p.timestamp);
+        if (!id || !ts) continue;
+        const quando = new Date(ts);
+        if (Number.isNaN(quando.getTime())) continue;
+        if (quando < desde) { passouDoLimite = true; break; }
+        const post: PostExterno = {
+          idExterno: id, legenda: str(p.caption), url: str(p.permalink), publicadoEm: quando,
+          tipo: str(p.media_product_type) === "REELS" ? "REELS" : str(p.media_type),
+          curtidas: num(p.like_count), comentarios: num(p.comments_count),
+        };
+        const ins = await insightsIg(conta, id, "post");
+        if (ins) { post.alcance = ins.alcance; post.compartilhamentos = ins.compartilhamentos; post.salvamentos = ins.salvamentos; post.visualizacoes = ins.visualizacoes; post.curtidas = post.curtidas ?? ins.curtidas; post.comentarios = post.comentarios ?? ins.comentarios; }
+        out.push(post);
+        if (out.length >= limite) break;
+      }
+      const proxima = str(obj(obj(r.json).paging).next);
+      if (passouDoLimite || !proxima || lote.length === 0) break;
+      if (!urlDaPlataformaValida(proxima, ["facebook.com"], Boolean(process.env.META_GRAPH_BASE))) break;
+      url = proxima;
+    }
+    return out;
   },
 };
 
