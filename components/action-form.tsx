@@ -31,6 +31,13 @@ export function ActionForm({
       {state.detalhes && state.detalhes.length > 0 && (
         <ul className="space-y-1 rounded-lg border border-borda bg-white p-3 text-sm">{state.detalhes.map((d, i) => <li key={i} className="whitespace-pre-line">{d}</li>)}</ul>
       )}
+      {state.segredo && (
+        <div className="rounded-lg border border-cobre/40 bg-amber-50 p-3 text-sm">
+          <p className="mb-1 font-medium">Código de acesso (aparece uma única vez — anote e entregue por canal seguro):</p>
+          <input readOnly value={state.segredo} onFocus={(e) => e.currentTarget.select()} aria-label="Código de acesso"
+            className="min-h-11 w-full rounded border border-borda bg-white px-2 text-center font-mono text-lg tracking-widest" />
+        </div>
+      )}
       {state.link && (
         <div className="rounded-lg border border-cobre/40 bg-amber-50 p-3 text-sm">
           <p className="mb-1 font-medium">Link (mostrado uma única vez — entregue por canal seguro):</p>

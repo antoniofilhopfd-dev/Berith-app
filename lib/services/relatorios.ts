@@ -56,7 +56,13 @@ export function variacaoPct(atual: number | null | undefined, anterior: number |
   return Math.round(((atual - anterior) / anterior) * 1000) / 10;
 }
 
-const num = (v: unknown) => (v == null ? null : Number(v));
+export const num = (v: unknown) => (v == null ? null : Number(v));
+
+/** Linha de posts_externos → post com interações calculadas. */
+export function postDeLinha(p: RowDataPacket): PostMes {
+  const base = { curtidas: num(p.curtidas), comentarios: num(p.comentarios), salvamentos: num(p.salvamentos), compartilhamentos: num(p.compartilhamentos) };
+  return { id: p.id_externo, tipo: p.tipo, legenda: p.legenda, url: p.url, miniatura: p.miniatura, publicado_em: p.publicado_em, alcance: num(p.alcance), visualizacoes: num(p.visualizacoes), ...base, interacoes: interacoesDe(base) };
+}
 
 /** Melhor dia da semana e horário (fuso do ministério) pelas interações dos posts reais; só indica com amostra mínima. */
 export function melhoresHorarios(posts: { publicado_em: Date; interacoes: number }[]): MelhorHorario {
@@ -95,11 +101,7 @@ export async function gerarRelatorioMensal(actor: number, mes: string, contaPedi
   // Posts do mês no fuso do ministério: pega uma folga de 1 dia em UTC e filtra pela data local.
   const todos = await query<RowDataPacket>(
     "SELECT id_externo, tipo, legenda, url, miniatura, publicado_em, alcance, curtidas, comentarios, salvamentos, compartilhamentos, visualizacoes, coletado_em FROM posts_externos WHERE rede = 'instagram' AND conta_id = ? ORDER BY publicado_em DESC LIMIT 1000", [contaId]);
-  const mapear = (p: RowDataPacket): PostMes => {
-    const base = { curtidas: num(p.curtidas), comentarios: num(p.comentarios), salvamentos: num(p.salvamentos), compartilhamentos: num(p.compartilhamentos) };
-    return { id: p.id_externo, tipo: p.tipo, legenda: p.legenda, url: p.url, miniatura: p.miniatura, publicado_em: p.publicado_em, alcance: num(p.alcance), visualizacoes: num(p.visualizacoes), ...base, interacoes: interacoesDe(base) };
-  };
-  const todosMapeados = todos.map(mapear);
+  const todosMapeados = todos.map(postDeLinha);
   const doMes = todosMapeados.filter((p) => utcToLocal(new Date(p.publicado_em)).date.startsWith(mes)).sort((a, b) => b.interacoes - a.interacoes || +new Date(b.publicado_em) - +new Date(a.publicado_em));
   const porTipo = new Map<string, number[]>();
   for (const p of doMes) { const t = ROTULO_TIPO[p.tipo ?? ""] ?? p.tipo ?? "Outro"; (porTipo.get(t) ?? porTipo.set(t, []).get(t)!).push(p.interacoes); }

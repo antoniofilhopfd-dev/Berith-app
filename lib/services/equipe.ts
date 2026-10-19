@@ -9,7 +9,7 @@ import { hashToken, newToken } from "./tokens";
 const CONVITE_DIAS = 7;
 
 export type Integrante = {
-  id: number; nome: string; email: string; status: string; telefone: string | null; perfil: Perfil | null; criado_em: Date;
+  id: number; nome: string; email: string; status: string; telefone: string | null; perfil: Perfil | null; criado_em: Date; temCodigo: boolean;
 };
 
 export function perfilValido(p: string): p is Perfil {
@@ -19,13 +19,14 @@ export function perfilValido(p: string): p is Perfil {
 /** Pessoas ativas/suspensas da equipe, com o perfil atual. Quem tem "equipe: ver" enxerga a equipe toda. */
 export async function listarEquipe(actor: number): Promise<Integrante[]> {
   await assertCan(actor, "equipe", "ver");
-  return query<Integrante & RowDataPacket>(
-    `SELECT u.id, u.nome, u.email, u.status, p.telefone, u.criado_em,
+  const linhas = await query<Integrante & RowDataPacket>(
+    `SELECT u.id, u.nome, u.email, u.status, p.telefone, u.criado_em, (u.acesso_hmac IS NOT NULL) AS tem_codigo,
        (SELECT r.codigo FROM user_roles ur JOIN roles r ON r.id = ur.role_id
          WHERE ur.user_id = u.id AND r.codigo IN (?) AND ur.scope_unit_id IS NULL LIMIT 1) AS perfil
      FROM users u LEFT JOIN member_profiles p ON p.user_id = u.id
      WHERE u.status <> 'pendente' ORDER BY u.status = 'ativo' DESC, u.nome`,
     [PERFIS as unknown as string[]]);
+  return linhas.map((l) => ({ ...l, temCodigo: Boolean((l as unknown as { tem_codigo: number }).tem_codigo) }));
 }
 
 export async function meusDados(userId: number) {

@@ -58,3 +58,13 @@ Escopo efetivamente testado: código-fonte, dependências, banco (MariaDB 10.11)
 5. IP do cliente vem de `X-Forwarded-For` (último item): confirmar na Hostinger que o proxy o define.
 6. Dados de demonstração (`seed-demo`) nunca devem ser usados em produção (o script se recusa com `NODE_ENV=production`).
 7. Sem 2FA. Recomendado como evolução, principalmente para administradores.
+
+
+## Entrada por código de acesso
+
+A entrada padrão é um **código pessoal de 8 caracteres** (`XXXX-XXXX`, alfabeto sem 0/O/1/I/L → ~1,1 trilhão de combinações), gerado por quem administra a equipe em **Equipe → Gerar código de acesso**. O código aparece **uma única vez**; no banco fica só o HMAC-SHA256 (chave = `SESSION_SECRET`), então ele não pode ser recuperado, apenas substituído. Gerar outro código encerra os acessos anteriores da pessoa; revogar impede a entrada por código.
+
+- **Proteção:** no máximo 8 falhas por endereço e 300 globais a cada 15 minutos, atraso crescente a cada falha e resposta igual para qualquer recusa (código errado, revogado ou pessoa suspensa). Tentativas e entradas ficam na auditoria.
+- **Forma de entrada** (Configurações → Segurança): *código com e-mail/senha escondido como alternativa* (padrão, para ninguém ficar sem acesso) ou *somente código*. Só dá para escolher "somente código" quem já tem o próprio código.
+- **Trocar o `SESSION_SECRET` invalida todos os códigos** (gere novos em Equipe).
+- **Recuperar o acesso do administrador** (sem acesso ao app): `npm run codigo:gerar -- email@exemplo.org` com `DB_*` e `SESSION_SECRET` no ambiente.

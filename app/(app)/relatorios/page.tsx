@@ -1,88 +1,129 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe } from "@/lib/permissions";
-import { CAMPOS, CAMPO_ROTULO, ROTULO_TIPO, gerarRelatorioMensal, mesAnterior, mesAtual, mesValido, variacaoPct, type RelatorioMensal } from "@/lib/services/relatorios";
-import { Card, Empty, PageHeader } from "@/components/ui";
+import { ROTULO_TIPO, variacaoPct } from "@/lib/services/relatorios";
+import { JANELAS, JANELA_ROTULO, gerarDesempenho, type Desempenho } from "@/lib/services/desempenho";
+import { Card, Empty } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
-import { BotaoImprimir } from "@/components/imprimir";
+import { RelNav } from "@/components/rel-nav";
+import { BarrasH, LinhaEvolucao, GRADIENTE_IG } from "@/components/graficos";
 import { atualizarInstagramAction, carregarHistoricoAction } from "./actions";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
 export const metadata = { title: "Relatórios" };
 export const dynamic = "force-dynamic";
 
-const Variacao = ({ a, b }: { a: number | null | undefined; b: number | null | undefined }) => {
-  const v = variacaoPct(a, b);
-  if (v == null) return null;
-  return <small className={`block text-xs ${v >= 0 ? "text-green-700" : "text-red-700"}`}>{v >= 0 ? "▲" : "▼"} {Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% vs. mês anterior</small>;
-};
-const Kpi = ({ rotulo, valor, anterior }: { rotulo: string; valor: number | null; anterior?: number | null }) => (
-  <div className="print-keep rounded-lg border border-borda bg-white p-3">
-    <small className="block text-xs text-tinta/70">{rotulo}</small>
-    <b className="mt-1 block text-xl text-verde-escuro">{valor == null ? "—" : formatNumber(valor)}</b>
-    <Variacao a={valor} b={anterior} />
-  </div>
-);
+const brMes = (p: string) => `${p.slice(5, 7)}/${p.slice(0, 4)}`;
+const brDia = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+const pct = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
-function Corpo({ r }: { r: RelatorioMensal }) {
-  const top = r.posts.slice(0, 5);
-  const semDados = !r.atual && r.posts.length === 0;
+const Delta = ({ v, sufixo = "vs. período anterior" }: { v: number | null; sufixo?: string }) =>
+  v == null ? null : <small className={`mt-1 block text-xs font-medium ${v >= 0 ? "text-green-700" : "text-red-700"}`}>{v >= 0 ? "▲" : "▼"} {Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% {sufixo}</small>;
+
+function Kpi({ rotulo, valor, sub, delta }: { rotulo: string; valor: string; sub?: string; delta?: number | null }) {
   return (
-    <>
-      <Card title={`Indicadores de ${r.rotuloMes}`}>
-        {semDados && <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 no-print">Ainda não há dados deste mês. Use <strong>Atualizar dados do Instagram agora</strong> (mês atual e anterior) ou <strong>Carregar histórico</strong> (até 12 meses).</p>}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi rotulo="Seguidores" valor={r.seguidores} anterior={r.seguidoresAnterior} />
-          {CAMPOS.map((c) => <Kpi key={c} rotulo={CAMPO_ROTULO[c]} valor={r.atual?.[c] ?? null} anterior={r.anteriorTotais?.[c]} />)}
-          <Kpi rotulo="Publicações" valor={r.posts.length} />
-        </div>
-        <p className="mt-3 text-xs text-tinta/70">
-          Formatos publicados: {r.formatos.length ? r.formatos.map((f) => `${f.tipo} ${f.posts}`).join(" · ") : "—"}.
-          {r.seguidores != null && r.seguidoresAnterior != null ? ` Variação de seguidores no mês: ${r.seguidores - r.seguidoresAnterior >= 0 ? "+" : ""}${formatNumber(r.seguidores - r.seguidoresAnterior)}.` : " O histórico de seguidores começa quando o Berith passa a coletar (a Meta não entrega o passado)."}
-        </p>
-      </Card>
-
-      <Card title="Melhores publicações do mês — top 5 por interações" className="overflow-x-auto">
-        {top.length === 0 ? <Empty>Sem publicações neste mês.</Empty> : <TabelaPosts posts={top} />}
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2 print-keep">
-        <Card title="Melhor dia e horário">
-          {r.horarios.melhor
-            ? <p className="text-sm"><strong>{r.horarios.melhor.dia}</strong> (média {formatNumber(r.horarios.melhor.mediaDia)} interações) e por volta das <strong>{String(r.horarios.melhor.hora).padStart(2, "0")}h</strong> (média {formatNumber(r.horarios.melhor.mediaHora)}). <span className="text-xs text-tinta/60">Confiança {r.horarios.melhor.confianca}, com base em {r.horarios.amostra} posts reais.</span></p>
-            : <p className="text-sm text-tinta/60">Preciso de pelo menos {r.horarios.minimo} posts importados para indicar (há {r.horarios.amostra}).</p>}
-        </Card>
-        <Card title="Desempenho por formato">
-          {r.formatos.length === 0 ? <Empty>Sem publicações neste mês.</Empty> : <ul className="space-y-1 text-sm">{r.formatos.map((f) => <li key={f.tipo} className="flex justify-between gap-2"><span>{f.tipo} <span className="text-xs text-tinta/60">({f.posts})</span></span><span>{formatNumber(f.mediaInteracoes)} <span className="text-xs text-tinta/60">interações em média</span></span></li>)}</ul>}
-        </Card>
-      </div>
-
-      {r.posts.length > 5 && (
-        <Card title={`Todas as publicações de ${r.rotuloMes}`} className="overflow-x-auto"><TabelaPosts posts={r.posts} compacta /></Card>
-      )}
-
-      <p className="text-xs text-tinta/60">
-        Dados lidos da API oficial da Meta (somente leitura); o que ela não informa aparece como “—” — nada é estimado. Alcance e visualizações não somam entre meses.
-        {r.atualizadoEm ? ` Última atualização: ${formatDateTime(r.atualizadoEm)}.` : ""}
-      </p>
-    </>
+    <div className="relative overflow-hidden rounded-xl border border-borda bg-cartao p-4 pl-5">
+      <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: "linear-gradient(180deg,#c13584,#f77737)" }} />
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-tinta/60">{rotulo}</p>
+      <p className="mt-1 text-2xl font-semibold text-verde-escuro">{valor}</p>
+      {sub && <small className="mt-1 block text-xs text-tinta/60">{sub}</small>}
+      <Delta v={delta ?? null} />
+    </div>
   );
 }
 
-function TabelaPosts({ posts, compacta = false }: { posts: RelatorioMensal["posts"]; compacta?: boolean }) {
+function Painel({ d }: { d: Desempenho }) {
+  const a = d.atual, p = d.anterior;
+  const v = (c: keyof NonNullable<Desempenho["atual"]>) => variacaoPct(a?.[c], p?.[c]);
+  const n = (x: number | null | undefined) => (x == null ? "—" : formatNumber(x));
+  const semTotais = !a;
+  const interacoes = a ? [["Curtidas", a.curtidas], ["Comentários", a.comentarios], ["Compartilhamentos", a.compartilhamentos], ["Salvamentos", a.salvamentos]] as const : [];
   return (
-    <table className="w-full min-w-[720px] text-left text-sm">
-      <caption className="sr-only">Publicações e suas métricas</caption>
-      <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr>{!compacta && <th scope="col" className="w-16 py-2">Foto</th>}<th scope="col" className="py-2">Publicação</th><th scope="col" className="px-2 text-right">Alcance</th><th scope="col" className="px-2 text-right">Curtidas</th><th scope="col" className="px-2 text-right">Coment.</th><th scope="col" className="px-2 text-right">Salvos</th><th scope="col" className="px-2 text-right">Compart.</th><th scope="col" className="px-2 text-right">Interações</th></tr></thead>
-      <tbody className="divide-y divide-borda">{posts.map((p) => (
-        <tr key={p.id} className="print-keep">
-          {!compacta && <td className="py-2 pr-2">{p.miniatura ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.miniatura} alt="" width={48} height={48} className="h-12 w-12 rounded object-cover" referrerPolicy="no-referrer" /> : <span className="block h-12 w-12 rounded bg-borda/40" />}</td>}
-          <th scope="row" className="max-w-xs py-2 pr-2 font-medium">{p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-verde-escuro hover:underline">{(p.legenda ?? "Sem legenda").slice(0, 70)}</a> : (p.legenda ?? "Sem legenda").slice(0, 70)}<div className="text-xs font-normal text-tinta/60">{ROTULO_TIPO[p.tipo ?? ""] ?? p.tipo ?? "Post"} · {formatDateTime(p.publicado_em)}</div></th>
-          {[p.alcance, p.curtidas, p.comentarios, p.salvamentos, p.compartilhamentos].map((v, i) => <td key={i} className="px-2 text-right">{v == null ? <span className="text-xs text-tinta/40">—</span> : formatNumber(v)}</td>)}
-          <td className="px-2 text-right font-semibold">{formatNumber(p.interacoes)}</td>
-        </tr>
-      ))}</tbody>
-    </table>
+    <>
+      {semTotais && (
+        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Ainda não há totais da Meta para {d.rotulo.toLowerCase() === "todo" ? "este período" : `os últimos ${d.rotulo}`}. Use <strong>Atualizar dados do Instagram agora</strong>{d.janela === "ano" || d.janela === "todo" ? " e depois " : ""}{d.janela === "ano" || d.janela === "todo" ? <strong>Carregar histórico</strong> : null}.</p>
+      )}
+      <section aria-label="Indicadores" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Kpi rotulo="Seguidores" valor={n(d.seguidores.fim)} sub={d.seguidores.noPeriodo != null ? `${d.seguidores.noPeriodo >= 0 ? "+" : ""}${formatNumber(d.seguidores.noPeriodo)} no período` : "histórico começa na primeira coleta"} />
+        <Kpi rotulo="Alcance" valor={n(a?.alcance)} delta={v("alcance")} />
+        <Kpi rotulo="Impressões (visualizações)" valor={n(a?.visualizacoes)} delta={v("visualizacoes")} />
+        <Kpi rotulo="Visitas ao perfil" valor={n(a?.visitasPerfil)} delta={v("visitasPerfil")} />
+        <Kpi rotulo="Interações" valor={n(a?.interacoes)} delta={v("interacoes")} />
+        <Kpi rotulo="Engajamento" valor={d.engajamento.atual == null ? "—" : pct(d.engajamento.atual)} sub="interações ÷ alcance" delta={variacaoPct(d.engajamento.atual, d.engajamento.anterior)} />
+      </section>
+      <p className="text-xs text-tinta/60">
+        {d.rotulo === "Todo" ? "Todo o período sincronizado" : d.janela === "ano" ? `Ano ${d.ano}${d.ate < `${d.ano}-12-31` ? " (parcial)" : ""}` : `Últimos ${d.rotulo}`} · {d.conta ?? "—"} · {brDia(d.de)}/{d.de.slice(0, 4)} a {brDia(d.ate)}/{d.ate.slice(0, 4)} · {d.fonte === "meta" ? "totais lidos da Meta" : "soma dos meses sincronizados"} · {d.postsNoPeriodo} post(s) no período ({d.reels} reel(s)). Engajamento = interações ÷ alcance.
+      </p>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Mix de formatos — produção registrada">
+          {d.mix.length === 0 ? <Empty>Sem publicações neste período.</Empty> : <BarrasH itens={d.mix.map((f) => ({ rotulo: f.tipo, valor: f.posts, extra: `· ${f.pct}%` }))} formato={formatNumber} />}
+          {d.mix.length > 0 && <p className="mt-3 text-xs text-tinta/60">Interações por post em média: {d.mix.map((f) => `${f.tipo} ${formatNumber(f.mediaInteracoes)}`).join(" · ")}.</p>}
+        </Card>
+        <Card title="Interações — como o público reage">
+          {interacoes.length === 0 ? <Empty>Sem totais da Meta ainda.</Empty> : <BarrasH itens={interacoes.map(([rotulo, valor]) => ({ rotulo, valor: valor ?? 0 }))} formato={formatNumber} />}
+          {interacoes.some(([, x]) => x == null) && <p className="mt-3 text-xs text-tinta/60">Barra vazia = a Meta não informou esse número.</p>}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Evolução — seguidores por dia"><LinhaEvolucao pontos={d.serieSeguidores.map((s) => ({ x: s.dia, y: s.seguidores }))} rotuloX={brDia} formato={formatNumber} />
+          {d.evolucaoSeguidores.length > 0 && <ul className="mt-3 space-y-1 text-sm">{d.evolucaoSeguidores.slice(-6).reverse().map((e) => <li key={e.periodo} className="flex justify-between"><span>{brMes(e.periodo)}</span><strong>{formatNumber(e.seguidores)}</strong></li>)}</ul>}
+        </Card>
+        <Card title="Destaques — melhores conteúdos">
+          {d.destaques.length === 0 ? <Empty>Sem posts importados ainda.</Empty> : (
+            <ul className="space-y-4 text-sm">{d.destaques.map((x) => (
+              <li key={x.periodo}><p className="font-semibold">★ {x.periodo}</p>
+                <ol className="mt-1 list-decimal space-y-1 pl-5">{x.posts.map((p, i) => <li key={i}>{p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-verde-escuro hover:underline">{(p.legenda ?? "Sem legenda").slice(0, 90)}</a> : (p.legenda ?? "Sem legenda").slice(0, 90)} <span className="text-tinta/60">— {formatNumber(p.interacoes)} interações</span></li>)}</ol></li>
+            ))}</ul>
+          )}
+        </Card>
+      </div>
+
+      <Card title="Histórico social — por mês" className="overflow-x-auto">
+        {d.historico.length === 0 ? <Empty>Sem meses carregados. Use <strong>Carregar histórico</strong>.</Empty> : (
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <caption className="sr-only">Totais mensais da conta</caption>
+            <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr><th scope="col" className="py-2">Período</th><th scope="col" className="px-2 text-right">Seguidores</th><th scope="col" className="px-2 text-right">Alcance</th><th scope="col" className="px-2 text-right">Impressões</th><th scope="col" className="px-2 text-right">Visitas</th><th scope="col" className="px-2 text-right">Interações</th></tr></thead>
+            <tbody className="divide-y divide-borda">{d.historico.map((h) => (
+              <tr key={h.periodo}><th scope="row" className="py-2 font-medium">{brMes(h.periodo)}</th>{[h.seguidores, h.alcance, h.visualizacoes, h.visitasPerfil, h.interacoes].map((x, i) => <td key={i} className="px-2 text-right">{x == null ? <span className="text-xs text-tinta/40">—</span> : formatNumber(x)}</td>)}</tr>
+            ))}</tbody>
+          </table>
+        )}
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <Card title="Melhor dia e horário — dados reais do Instagram">
+          {d.horarios.melhor
+            ? <p className="text-sm"><strong>{d.horarios.melhor.dia}</strong> (média {formatNumber(d.horarios.melhor.mediaDia)} interações) · por volta das <strong>{String(d.horarios.melhor.hora).padStart(2, "0")}h</strong> (média {formatNumber(d.horarios.melhor.mediaHora)}).<br /><span className="text-xs text-tinta/60">Confiança {d.horarios.melhor.confianca}{d.horarios.melhor.confianca === "baixa" ? ": poucos posts em cada dia/horário. Use como pista, não como regra" : ""}. Calculado com {d.horarios.totalPosts} publicações sincronizadas.</span></p>
+            : <p className="text-sm text-tinta/60">Preciso de pelo menos {d.horarios.minimo} posts importados para indicar (há {d.horarios.totalPosts}).</p>}
+        </Card>
+        <Card title="Ranking de conteúdos — curtidas + comentários + compartilhamentos + salvamentos">
+          {d.ranking.length === 0 ? <Empty>Sem publicações neste período.</Empty> : (
+            <ol className="divide-y divide-borda text-sm">{d.ranking.map((p, i) => (
+              <li key={p.id} className="grid grid-cols-[2rem_1fr] gap-2 py-2"><strong className="text-verde-escuro">{i + 1}º</strong>
+                <div className="min-w-0"><p>{(p.legenda ?? "Sem legenda").slice(0, 160)}</p>
+                  <p className="text-xs text-tinta/60">{(ROTULO_TIPO[p.tipo ?? ""] ?? p.tipo ?? "Post").toUpperCase()} · {p.publicado_em.toISOString().slice(0, 10)} · {formatNumber(p.interacoes)} interações{p.alcance != null ? ` · alcance ${formatNumber(p.alcance)}` : ""}{p.url ? <> · <a href={p.url} target="_blank" rel="noopener noreferrer" className="underline">abrir</a></> : null}</p></div></li>
+            ))}</ol>
+          )}
+        </Card>
+      </div>
+
+      {d.comparativo && (
+        <Card title="Comparativo entre contas — últimos 30 dias" className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-sm">
+            <caption className="sr-only">Comparativo entre as contas do Instagram</caption>
+            <thead className="border-b border-borda text-xs uppercase text-tinta/60"><tr><th scope="col" className="py-2">Conta</th><th scope="col" className="px-2 text-right">Seguidores</th><th scope="col" className="px-2 text-right">Alcance</th><th scope="col" className="px-2 text-right">Interações</th><th scope="col" className="px-2 text-right">Posts</th></tr></thead>
+            <tbody className="divide-y divide-borda">{d.comparativo.map((c) => (
+              <tr key={c.igId}><th scope="row" className="py-2 font-medium"><Link href={`?janela=${d.janela}&conta=${c.igId}`} className="hover:underline">{c.usuario}</Link></th>{[c.seguidores, c.alcance, c.interacoes, c.posts].map((x, i) => <td key={i} className="px-2 text-right">{x == null ? <span className="text-xs text-tinta/40">—</span> : formatNumber(x)}</td>)}</tr>
+            ))}</tbody>
+          </table>
+        </Card>
+      )}
+
+      <p className="text-xs text-tinta/60">Dados lidos da API oficial da Meta (somente leitura); o que ela não informa aparece como “—” — nada é estimado. Alcance e visualizações não somam entre períodos.{d.atualizadoEm ? ` Última atualização: ${formatDateTime(d.atualizadoEm)}.` : ""}</p>
+    </>
   );
 }
 
@@ -91,39 +132,46 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
   await exigir(user.id, "relatorios", "ver");
   const perms = await permissoesDe(user.id);
   const sp = await searchParams;
-  const mes = sp.mes && mesValido(sp.mes) ? sp.mes : mesAtual();
-  const rel = await gerarRelatorioMensal(user.id, mes, sp.conta);
-  const ig = rel.conta;
+  const d = await gerarDesempenho(user.id, sp.janela, sp.conta, new Date(), sp.ano);
+  const cta = d.contaId && d.contas.length > 1 ? `&conta=${d.contaId}` : "";
+  const link = (j: string, ano?: string) => `?janela=${j}${ano ? `&ano=${ano}` : ""}${cta}`;
   return (
     <div className="space-y-5">
-      <PageHeader titulo={`Relatório mensal — Instagram${ig ? " " + ig : ""}`} sub={`${rel.rotuloMes}, comparado com ${mesAnterior(mes).split("-").reverse().join("/")}. ${ig ? `Conta: ${ig}${rel.contas.length > 1 ? ` (${rel.contas.length} contas acompanhadas)` : ""}.` : "Nenhuma conta do Instagram conectada."}`}>
-        <span className="no-print flex flex-wrap gap-2">
-          <BotaoImprimir />
-          {perms.has("relatorios:exportar") && <a href={`/api/relatorios/exportar?formato=pdf&mes=${mes}&conta=${rel.contaId ?? ""}`} className="inline-flex min-h-10 items-center rounded-lg border border-borda bg-white px-4 text-sm hover:bg-fundo">Baixar PDF</a>}
-          {perms.has("relatorios:exportar") && <a href={`/api/relatorios/exportar?formato=xlsx&mes=${mes}&conta=${rel.contaId ?? ""}`} className="inline-flex min-h-10 items-center rounded-lg border border-borda bg-white px-4 text-sm hover:bg-fundo">Excel</a>}
-        </span>
-      </PageHeader>
+      <header className="relative overflow-hidden rounded-2xl border border-borda bg-cartao p-5">
+        <div aria-hidden className="absolute right-4 top-4 h-14 w-14 rounded-2xl" style={{ background: GRADIENTE_IG }} />
+        <h1 className="font-titulo text-2xl text-verde-escuro">Desempenho e conteúdo</h1>
+        <p className="mt-1 max-w-2xl text-sm text-tinta/70">Crescimento, alcance, interação e formatos em uma visão própria de social media. Métricas sincronizadas automaticamente da API do Instagram{d.atualizadoEm ? ` (última: ${formatDateTime(d.atualizadoEm)})` : ""}.</p>
+        <div className="mt-3"><RelNav atual="geral" conta={d.contas.length > 1 ? d.contaId : null} /></div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <nav aria-label="Período" className="flex flex-wrap gap-2">{JANELAS.map((j) => <Link key={j} href={link(j, j === "ano" ? d.ano : undefined)} aria-current={d.janela === j ? "page" : undefined} className={`rounded-full border px-4 py-1.5 text-sm font-medium ${d.janela === j ? "border-verde bg-verde text-white" : "border-borda bg-white hover:bg-fundo"}`}>{JANELA_ROTULO[j]}</Link>)}</nav>
+          {d.janela === "ano" && (
+            <nav aria-label="Ano" className="flex flex-wrap gap-1.5">{[...d.anos].reverse().map((a) => <Link key={a} href={link("ano", a)} aria-current={d.ano === a ? "page" : undefined} className={`rounded-lg border px-3 py-1 text-sm ${d.ano === a ? "border-cobre bg-cobre/15 font-semibold" : "border-borda bg-white hover:bg-fundo"}`}>{a}</Link>)}</nav>
+          )}
+          {d.contas.length > 1 && (
+            <form method="get" className="flex items-center gap-2"><input type="hidden" name="janela" value={d.janela} />{d.janela === "ano" && <input type="hidden" name="ano" value={d.ano} />}
+              <label className="sr-only" htmlFor="conta">Conta</label>
+              <select id="conta" name="conta" defaultValue={d.contaId ?? ""} className="min-h-9 rounded-lg border border-borda bg-white px-2 text-sm">{d.contas.map((c) => <option key={c.igId} value={c.igId}>{c.usuario}{c.principal ? " (principal)" : ""}</option>)}</select>
+              <button className="min-h-9 rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Ver</button></form>
+          )}
+          <span className="ml-auto flex flex-wrap gap-2">
+            <Link href={`/relatorios/mensal${d.contaId && d.contas.length > 1 ? `?conta=${d.contaId}` : ""}`} className="inline-flex min-h-9 items-center rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Relatório mensal (imprimir)</Link>
+            {perms.has("relatorios:exportar") && <a href={`/api/relatorios/exportar?tipo=desempenho&formato=xlsx&janela=${d.janela}&ano=${d.ano}&conta=${d.contaId ?? ""}`} className="inline-flex min-h-9 items-center rounded-lg border border-borda bg-white px-3 text-sm hover:bg-fundo">Excel</a>}
+          </span>
+        </div>
+      </header>
 
-      <form method="get" className="no-print flex flex-wrap items-end gap-2 rounded-xl border border-borda bg-cartao p-3" aria-label="Mês">
-        <label className="text-xs">Mês<input type="month" name="mes" defaultValue={mes} max={mesAtual()} className="mt-1 block min-h-10 rounded-lg border border-borda px-2 text-sm" /></label>
-        {rel.contas.length > 1 && (
-          <label className="text-xs">Conta<select name="conta" defaultValue={rel.contaId ?? ""} className="mt-1 block min-h-10 rounded-lg border border-borda px-2 text-sm">{rel.contas.map((c) => <option key={c.igId} value={c.igId}>{c.usuario}{c.principal ? " (principal)" : ""}</option>)}</select></label>
-        )}
-        <button className="min-h-10 rounded-lg bg-verde px-4 text-sm text-white">Atualizar tela</button>
-      </form>
-
-      {ig && (
-        <div className="no-print grid gap-3 lg:grid-cols-2">
+      {d.conta ? (
+        <div className="grid gap-3 lg:grid-cols-2">
           <ActionForm action={atualizarInstagramAction} submit="Atualizar dados do Instagram agora" resetOnOk={false} className="rounded-xl border border-borda bg-cartao p-3">
-            <p className="text-xs text-tinta/60">Busca agora na Meta os posts, seguidores e as métricas do mês atual e do anterior. O agendador faz isso sozinho a cada hora.</p>
+            <p className="text-xs text-tinta/60">Busca agora na Meta posts, seguidores e totais ({d.conta}). O agendador faz isso sozinho a cada hora.</p>
           </ActionForm>
           <ActionForm action={carregarHistoricoAction} submit="Carregar histórico (12 meses)" resetOnOk={false} className="rounded-xl border border-borda bg-cartao p-3">
-            <p className="text-xs text-tinta/60">Preenche os meses anteriores para poder escolher qualquer mês acima. A Meta só entrega o que ainda guarda.</p>
+            <p className="text-xs text-tinta/60">Preenche os meses anteriores (Ano, Todo e histórico mensal). A Meta só entrega o que ainda guarda.</p>
           </ActionForm>
         </div>
-      )}
+      ) : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Nenhuma conta do Instagram conectada. Conecte em Configurações → Redes sociais.</p>}
 
-      <Corpo r={rel} />
+      <Painel d={d} />
     </div>
   );
 }

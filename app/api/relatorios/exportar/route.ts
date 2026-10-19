@@ -2,9 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { assertCan, ForbiddenError } from "@/lib/permissions";
 import { gerarRelatorioMensal, mesAtual } from "@/lib/services/relatorios";
+import { gerarDesempenho } from "@/lib/services/desempenho";
 import { gerarXlsx } from "@/lib/export/xlsx";
 import { gerarPdf } from "@/lib/export/pdf";
-import { paraPdf, paraPlanilhas } from "@/lib/export/relatorio";
+import { desempenhoParaPlanilhas, paraPdf, paraPlanilhas } from "@/lib/export/relatorio";
 import { lerConfig } from "@/lib/services/configuracoes";
 import { audit } from "@/lib/services/audit";
 import { DomainError } from "@/lib/services/errors";
@@ -23,6 +24,11 @@ export async function GET(req: NextRequest) {
   const formato = p.get("formato") === "xlsx" ? "xlsx" : "pdf";
   try {
     await assertCan(user.id, "relatorios", "exportar");
+    if (p.get("tipo") === "desempenho") {
+      const d = await gerarDesempenho(user.id, p.get("janela") ?? undefined, p.get("conta") || undefined, new Date(), p.get("ano") ?? undefined);
+      await audit(user.id, "relatorio.exportar", { entidade: "relatorio", detalhes: { formato: "xlsx", tipo: "desempenho", janela: d.janela } });
+      return new NextResponse(new Uint8Array(gerarXlsx(desempenhoParaPlanilhas(d))), { headers: { ...h, "Content-Disposition": `attachment; filename="desempenho-instagram-${d.janela}-${d.ate}.xlsx"`, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } });
+    }
     const rel = await gerarRelatorioMensal(user.id, p.get("mes") ?? mesAtual(), p.get("conta") || undefined);
     await audit(user.id, "relatorio.exportar", { entidade: "relatorio", detalhes: { formato, mes: rel.mes } });
     const nome = `relatorio-instagram-${rel.mes}.${formato}`;

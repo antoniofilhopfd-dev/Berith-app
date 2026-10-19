@@ -5,7 +5,7 @@ import { cargaDaEquipe, listarEquipe, listarPendentes } from "@/lib/services/equ
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
-import { aprovarAction, convidarAction, linkSenhaAction, perfilEquipeAction, rejeitarAction, situacaoAction } from "./actions";
+import { aprovarAction, codigoAcessoAction, convidarAction, linkSenhaAction, perfilEquipeAction, rejeitarAction, situacaoAction } from "./actions";
 
 export const metadata = { title: "Equipe" };
 export const dynamic = "force-dynamic";
@@ -37,15 +37,17 @@ export default async function Equipe() {
               const c = carga.get(p.id);
               return (
                 <tr key={p.id} className={p.status === "suspenso" ? "opacity-60" : ""}>
-                  <th scope="row" className="py-2 pr-2 font-medium">{p.nome}{p.status === "suspenso" && <> <Badge tom="vermelho">suspenso</Badge></>}<div className="font-normal text-xs text-tinta/60">{p.email}{p.telefone ? ` · ${p.telefone}` : ""} · desde {formatDate(p.criado_em)}</div></th>
+                  <th scope="row" className="py-2 pr-2 font-medium">{p.nome}{p.status === "suspenso" && <> <Badge tom="vermelho">suspenso</Badge></>}<div className="font-normal text-xs text-tinta/60">{p.temCodigo ? "código de acesso ativo · " : "sem código · "}{p.email}{p.telefone ? ` · ${p.telefone}` : ""} · desde {formatDate(p.criado_em)}</div></th>
                   <td>{gerir && p.id !== user.id ? (
                     <ActionForm action={perfilEquipeAction} submit="Salvar" className="flex items-center gap-1 space-y-0"><input type="hidden" name="id" value={p.id} />
                       <select name="perfil" defaultValue={p.perfil ?? "nenhum"} aria-label={`Perfil de ${p.nome}`} className="min-h-10 rounded-lg border border-borda px-2 text-sm">{PERFIS.map((x) => <option key={x} value={x}>{PERFIL_ROTULO[x]}</option>)}<option value="nenhum">Sem perfil (sem acesso)</option></select></ActionForm>
                   ) : p.perfil ? <Badge tom="verde">{PERFIL_ROTULO[p.perfil]}</Badge> : <Badge tom="cinza">sem perfil</Badge>}</td>
                   <td className="text-right">{c?.aberto ?? 0}</td><td className="text-right">{c?.revisao ?? 0}</td><td className="text-right">{c?.ajustes ?? 0}</td><td className={`text-right ${c?.atrasadas ? "font-semibold text-red-700" : ""}`}>{c?.atrasadas ?? 0}</td><td className="text-right">{c?.publicadasMes ?? 0}</td>
-                  {gerir && <td className="pl-3">{p.id !== user.id && <div className="flex flex-col gap-1">
+                  {gerir && <td className="pl-3"><div className="flex flex-col gap-1">
+                    {p.status === "ativo" && <ActionForm action={codigoAcessoAction} submit={p.temCodigo ? "Gerar novo código" : "Gerar código de acesso"} className="space-y-0"><input type="hidden" name="id" value={p.id} /></ActionForm>}
+                    {p.id !== user.id && <>
                     <ActionForm action={situacaoAction} submit={p.status === "ativo" ? "Suspender" : "Reativar"} danger={p.status === "ativo"} className="space-y-0"><input type="hidden" name="id" value={p.id} /><input type="hidden" name="status" value={p.status === "ativo" ? "suspenso" : "ativo"} /></ActionForm>
-                    {p.status === "ativo" && <ActionForm action={linkSenhaAction} submit="Gerar link de senha" className="space-y-0"><input type="hidden" name="id" value={p.id} /></ActionForm>}</div>}</td>}
+                    {p.status === "ativo" && <ActionForm action={linkSenhaAction} submit="Gerar link de senha" className="space-y-0"><input type="hidden" name="id" value={p.id} /></ActionForm>}</>}</div></td>}
                 </tr>
               );
             })}</tbody>

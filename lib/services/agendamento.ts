@@ -7,7 +7,7 @@ import { DomainError, NotFoundError } from "./errors";
 import { destinatariosCom, notificar, notificarSeguro } from "./notificacoes";
 import { lerConfig } from "./configuracoes";
 import { conteudoParaValidar, getPub, podeEditar, type Pub, type PubRede } from "./publicacoes";
-import { localToUtc, utcToLocal } from "@/lib/time";
+import { addDays, localToUtc, utcToLocal } from "@/lib/time";
 import { contaAtiva, contasInstagramAtivas, logIntegracao, marcarContaComErro } from "@/lib/integracoes/contas";
 import { provedor } from "@/lib/integracoes";
 import { mascarar } from "@/lib/integracoes/cripto";
@@ -370,6 +370,8 @@ async function sincronizarUmaConta(rede: Rede, conta: ContaDaRede, agora: Date, 
   if (rede === "instagram" && o.meses > 0) {
     const mm = await atualizarMesesInstagram(conta, o.meses, agora);
     out.meses = mm.meses; out.erro = mm.erro;
+    const jj = await atualizarJanelasInstagram(conta, agora);
+    if (jj.janelas === 0 && !out.erro) out.erro = jj.erro;
   }
   const r = await importarPostsDaConta(rede, conta, agora, o.forcar);
   out.posts = r.n; out.erro = r.erro ?? out.erro;
@@ -402,6 +404,37 @@ export async function atualizarMesesInstagram(conta: ContaDaRede, meses: number,
     mes--; if (mes < 1) { mes = 12; ano--; }
   }
   return { meses: n, erro };
+}
+
+export const JANELAS_DESEMPENHO = [7, 30, 90] as const;
+
+/** Totais das janelas móveis (7/30/90 dias, mais a janela anterior de cada uma) guardados em instagram_janelas. */
+export async function atualizarJanelasInstagram(conta: ContaDaRede, agora = new Date()): Promise<{ janelas: number; erro?: string }> {
+  const prov = provedor("instagram");
+  if (!prov.metricasPeriodo) return { janelas: 0 };
+  const contaId = conta.contaExternaId ?? "";
+  const hoje = utcToLocal(agora).date;
+  let n = 0, erro: string | undefined;
+  for (const dias of JANELAS_DESEMPENHO) {
+    for (const quando of ["atual", "anterior"] as const) {
+      const ate = quando === "atual" ? hoje : addDays(hoje, -dias);
+      const de = addDays(ate, -(dias - 1));
+      try {
+        const m = await prov.metricasPeriodo(conta, localToUtc(de, "00:00"), localToUtc(addDays(ate, 1), "00:00"));
+        if (!m) continue;
+        await execute(
+          `INSERT INTO instagram_janelas (conta_id, janela, quando, de, ate, alcance, visualizacoes, visitas_perfil, interacoes, curtidas, comentarios, compartilhamentos, salvamentos, atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           ON DUPLICATE KEY UPDATE de = VALUES(de), ate = VALUES(ate), alcance = VALUES(alcance), visualizacoes = VALUES(visualizacoes), visitas_perfil = VALUES(visitas_perfil), interacoes = VALUES(interacoes),
+             curtidas = VALUES(curtidas), comentarios = VALUES(comentarios), compartilhamentos = VALUES(compartilhamentos), salvamentos = VALUES(salvamentos), atualizado_em = VALUES(atualizado_em)`,
+          [contaId, String(dias), quando, de, ate, m.alcance ?? null, m.visualizacoes ?? null, m.visitasPerfil ?? null, m.interacoes ?? null, m.curtidas ?? null, m.comentarios ?? null, m.compartilhamentos ?? null, m.salvamentos ?? null, agora]);
+        n++;
+      } catch (e) {
+        erro = mascarar(e instanceof Error ? e.message : "erro");
+        await logIntegracao("instagram", "aviso", "metricas_janela_falhou", `${conta.nome ?? contaId} ${dias} dias (${quando}): ${erro}`);
+      }
+    }
+  }
+  return { janelas: n, erro };
 }
 
 /** Atualiza agora os dados de todas as contas da rede, sem esperar o agendador. Mostra o erro de cada conta, se houver. */

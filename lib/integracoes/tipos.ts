@@ -44,6 +44,8 @@ export interface Provedor {
   listarPostsConta?(conta: ContaAtiva, desde: Date, limite: number): Promise<PostExterno[]>;
   /** Totais da conta num mês civil (fuso do ministério), lidos da API oficial. Lança erro se a rede recusar tudo. */
   metricasMes?(conta: ContaAtiva, ano: number, mes: number, agora?: Date): Promise<MetricasMes | null>;
+  /** Totais da conta num intervalo [ini, fim) qualquer (a rede limita cada consulta; o provedor divide em janelas). */
+  metricasPeriodo?(conta: ContaAtiva, ini: Date, fim: Date): Promise<MetricasMes | null>;
   /** Usa PKCE (code_verifier)? */
   pkce?: boolean;
 }
