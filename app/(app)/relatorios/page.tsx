@@ -5,6 +5,7 @@ import { permissoesDe } from "@/lib/permissions";
 import { METRICAS, METRICA_ROTULO, ROTULO_TIPO, REDES_RELATORIO, gerarRelatorio, gerarRelatorioConta, textoCelula, validarPeriodo, variacao, type Celula } from "@/lib/services/relatorios";
 import { Badge, Card, Empty, PageHeader, Stat } from "@/components/ui";
 import { FormatoTag, RedeTag } from "@/components/pub-ui";
+import { nomesContas } from "@/lib/integracoes/contas";
 import { DomainError } from "@/lib/services/errors";
 import { FORMATO_ROTULO, REDE_ROTULO } from "@/lib/editorial";
 import { addDays, brDate, utcToLocal } from "@/lib/time";
@@ -26,13 +27,14 @@ export default async function Relatorios({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const hoje = utcToLocal(new Date()).date;
   const ate = sp.ate ?? hoje, de = sp.de ?? addDays(ate, -29), comparar = sp.comparar !== "0";
+  const contas = await nomesContas();
   let rel, conta, erro: string | null = null;
   try { validarPeriodo(de, ate); rel = await gerarRelatorio(user.id, de, ate, comparar, REDES_RELATORIO); conta = await gerarRelatorioConta(user.id, de, ate, REDES_RELATORIO); } catch (e) { if (e instanceof DomainError) erro = e.message; else throw e; }
   const atalho = (d: number, rotulo: string) => <Link key={rotulo} href={`?de=${addDays(hoje, -(d - 1))}&ate=${hoje}${comparar ? "" : "&comparar=0"}`} className="rounded-lg border border-borda bg-white px-3 py-2 text-sm hover:bg-fundo">{rotulo}</Link>;
   const qs = `de=${de}&ate=${ate}${comparar ? "" : "&comparar=0"}`;
   return (
     <div className="space-y-5">
-      <PageHeader titulo="Relatórios orgânicos" sub="Apenas métricas oficiais das plataformas. Nada é estimado ou inventado.">
+      <PageHeader titulo="Relatórios orgânicos" sub={`${contas.instagram ? `Conta: ${contas.instagram}. ` : "Nenhuma conta do Instagram conectada. "}Apenas métricas oficiais da plataforma — nada é estimado ou inventado.`}>
         {perms.has("relatorios:exportar") && rel && <><a href={`/api/relatorios/exportar?formato=pdf&${qs}`} className="inline-flex min-h-10 items-center rounded-lg bg-verde px-4 text-sm text-white">Exportar PDF</a><a href={`/api/relatorios/exportar?formato=xlsx&${qs}`} className="inline-flex min-h-10 items-center rounded-lg border border-borda bg-white px-4 text-sm hover:bg-fundo">Exportar Excel</a></>}
       </PageHeader>
       <form method="get" className="flex flex-wrap items-end gap-2 rounded-xl border border-borda bg-cartao p-3" aria-label="Período">

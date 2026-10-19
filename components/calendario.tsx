@@ -16,7 +16,8 @@ export type DiaCal = { data: string; itens: ItemCal[]; datas: string[]; foraDoMe
 const SIGLA: Record<Rede, string> = { instagram: "IG", facebook: "FB", tiktok: "TT", youtube: "YT" };
 const COR_STATUS: Record<Status, string> = { rascunho: "#9aa0a6", em_producao: "#3f6f8f", em_revisao: "#c99700", ajustes_solicitados: "#b07840", aprovado: "#587458", agendado: "#2f7d4f", publicado: "#445a44", cancelado: "#b3261e" };
 
-export function Calendario({ visao, dias, hoje, podeCriar, mover, criarRapida }: {
+export function Calendario({ visao, dias, hoje, podeCriar, mover, criarRapida, contas = {} }: {
+  contas?: Partial<Record<Rede, string>>;
   visao: Visao; dias: DiaCal[]; hoje: string; podeCriar: boolean;
   mover: (id: number, dia: string) => Promise<{ erro?: string }>; criarRapida: FormAction;
 }) {
@@ -119,7 +120,7 @@ export function Calendario({ visao, dias, hoje, podeCriar, mover, criarRapida }:
               <input type="hidden" name="dia" value={novoDia} />
               <Field label="Título interno"><input name="titulo" required minLength={2} maxLength={160} autoFocus className={inputCls} /></Field>
               <Field label="Formato"><select name="formato" defaultValue="post" className={inputCls}>{FORMATOS_ATIVOS.map((f) => <option key={f} value={f}>{FORMATO_ROTULO[f]}</option>)}</select></Field>
-              <fieldset className="flex flex-wrap gap-3"><legend className="mb-1 text-sm font-medium">Redes</legend>{REDES_ATIVAS.map((r) => <label key={r} className="flex items-center gap-1 text-sm"><input type="checkbox" name="redes" value={r} defaultChecked={r === "instagram"} className="h-4 w-4" />{REDE_ROTULO[r]}</label>)}</fieldset>
+              <fieldset className="flex flex-wrap gap-3"><legend className="mb-1 text-sm font-medium">Redes</legend>{REDES_ATIVAS.map((r) => <label key={r} className="flex items-center gap-1 text-sm"><input type="checkbox" name="redes" value={r} defaultChecked={r === "instagram"} className="h-4 w-4" />{REDE_ROTULO[r]}{contas[r] ? ` (${contas[r]})` : ""}</label>)}</fieldset>
               <p className="text-xs text-tinta/60">Cria um rascunho com a data prevista. O restante você completa no editor.</p>
             </ActionForm>
           </div>

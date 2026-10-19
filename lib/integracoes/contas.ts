@@ -32,6 +32,12 @@ export async function statusRedes(actor: number): Promise<StatusRede[]> {
   });
 }
 
+/** Nome (@usuário) da conta conectada em cada rede, para mostrar nas telas onde a publicação/dados vão ou vêm. */
+export async function nomesContas(): Promise<Partial<Record<Rede, string>>> {
+  const r = await query<RowDataPacket>("SELECT rede, nome_exibicao FROM redes_contas WHERE status = 'conectada' AND nome_exibicao IS NOT NULL");
+  return Object.fromEntries(r.map((x) => [x.rede as Rede, String(x.nome_exibicao)]));
+}
+
 /** Redes com conta ativa (para saber se a publicação automática é possível). */
 export async function redesConectadas(): Promise<Set<Rede>> {
   const r = await query<RowDataPacket>("SELECT rede FROM redes_contas WHERE status = 'conectada'");
@@ -64,6 +70,13 @@ export async function concluirConexao(actor: number, rede: Rede, state: string, 
   const p = provedor(rede);
   try {
     const { tokens, perfil } = await p.trocarCodigo({ code, redirectUri: redirectUri(base, rede) });
+    // Trocou para outra conta: os dados importados da conta anterior não podem se misturar com os da nova.
+    const anterior = (await query<RowDataPacket>("SELECT conta_externa_id FROM redes_contas WHERE rede = ?", [rede]))[0]?.conta_externa_id as string | null | undefined;
+    if (anterior && anterior !== perfil.contaExternaId) {
+      await execute("DELETE FROM posts_externos WHERE rede = ?", [rede]);
+      await execute("DELETE FROM metricas_conta WHERE rede = ?", [rede]);
+      await logIntegracao(rede, "aviso", "conta_trocada", "A conta conectada mudou: posts e métricas importados da conta anterior foram removidos.");
+    }
     await execute(
       `INSERT INTO redes_contas (rede, nome_exibicao, conta_externa_id, status, escopos, token_enc, refresh_enc, expira_em, meta, ultimo_erro, conectada_por, conectada_em)
        VALUES (?,?,?, 'conectada', ?,?,?,?,?, NULL, ?, UTC_TIMESTAMP())

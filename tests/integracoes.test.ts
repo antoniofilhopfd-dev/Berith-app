@@ -95,6 +95,24 @@ describe("conexão OAuth", () => {
     await expect(C.iniciarConexao(e.admin, "youtube", "https://app.exemplo.org")).rejects.toThrow(/TOKEN_ENC_KEY/);
     process.env.TOKEN_ENC_KEY = k;
   });
+  it("trocar de conta remove os dados importados da anterior; reconectar a mesma conta mantém", async () => {
+    const com = (id: string, nome: string): Provedor => ({ ...fake(), trocarCodigo: async () => ({ tokens: { accessToken: "T" }, perfil: { contaExternaId: id, nome } }) });
+    const conectar = async (id: string, nome: string) => {
+      definirProvedores({ youtube: com(id, nome) });
+      const st = await estadoDe(await C.iniciarConexao(e.admin, "youtube", "https://app.exemplo.org"));
+      await C.concluirConexao(e.admin, "youtube", st, "c", "https://app.exemplo.org");
+    };
+    await conectar("canal-A", "Canal A");
+    await execute("INSERT INTO posts_externos (rede, id_externo, publicado_em, coletado_em) VALUES ('youtube','v1', NOW(), NOW())");
+    await execute("INSERT INTO metricas_conta (rede, dia, seguidores) VALUES ('youtube', CURDATE(), 10)");
+    await conectar("canal-A", "Canal A");
+    expect((await query<any>("SELECT COUNT(*) n FROM posts_externos"))[0].n).toBe(1); // mesma conta: mantém
+    await conectar("canal-B", "Canal B");
+    expect((await query<any>("SELECT COUNT(*) n FROM posts_externos"))[0].n).toBe(0);
+    expect((await query<any>("SELECT COUNT(*) n FROM metricas_conta WHERE rede = 'youtube'"))[0].n).toBe(0);
+    expect((await C.nomesContas()).youtube).toBe("Canal B");
+    await execute("DELETE FROM redes_contas WHERE rede = 'youtube'");
+  });
   it("fluxo completo: state de uso único, tokens cifrados no banco, status e desconexão", async () => {
     definirProvedores({ youtube: fake() });
     const url = await C.iniciarConexao(e.admin, "youtube", "https://app.exemplo.org/");
