@@ -9,7 +9,7 @@ const dialogo = () => (process.env.META_DIALOG_BASE || "https://www.facebook.com
 const appId = () => process.env.META_APP_ID ?? "";
 const appSecret = () => process.env.META_APP_SECRET ?? "";
 
-const ESCOPOS_FB = ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "read_insights", "business_management"];
+const ESCOPOS_FB = ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management"];
 const ESCOPOS_IG = ["instagram_basic", "instagram_content_publish", "instagram_manage_insights", "pages_show_list", "pages_read_engagement", "business_management"];
 
 const form = (o: Record<string, string>) => new URLSearchParams(o).toString();

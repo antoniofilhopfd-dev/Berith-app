@@ -18,7 +18,7 @@ O código foi validado contra **servidores simulados** que reproduzem o formato 
 ### Meta (Instagram + Facebook)
 1. Conta Instagram **profissional** (Business/Creator) vinculada a uma **Página do Facebook** que a pessoa conectada administre.
 2. Criar um app em Meta for Developers (tipo Business), adicionar “Facebook Login” e os produtos de Instagram.
-3. Permissões: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `read_insights`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_insights`. **Passam por App Review** para uso fora do modo de desenvolvimento (contas adicionadas como testadores funcionam sem revisão).
+3. Permissões: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_insights`. **Passam por App Review** para uso fora do modo de desenvolvimento (contas adicionadas como testadores funcionam sem revisão).
 4. Cadastrar em “URIs de redirecionamento OAuth válidos”: `https://SEU-DOMINIO/api/integracoes/instagram/callback` e `.../facebook/callback` (a tela Configurações → Redes sociais mostra a URL exata).
 5. Variáveis: `META_APP_ID`, `META_APP_SECRET`; opcional `META_PAGE_ID` (se administrar várias Páginas) e `META_GRAPH_VERSION` (padrão `v23.0` — confirme a versão vigente).
 6. Requisitos da API: o Instagram só aceita **JPEG** para imagem; mídia precisa ser buscável por URL pública HTTPS (o app gera links temporários assinados, válidos por 1 h).
