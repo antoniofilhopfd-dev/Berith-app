@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { authenticate } from "./login";
-import { autenticarCodigo, modoLogin } from "./codigo";
-import { safeNext } from "./constants";
+import { cookies } from "next/headers";
+import { autenticarCodigo, hashDispositivo, modoLogin, registrarDispositivo } from "./codigo";
+import { DEV_COOKIE, safeNext } from "./constants";
 import { clientInfo, createSession, destroySession, getSessionUser } from "./session";
 import { loginSchema } from "@/lib/validation/auth";
 import { audit } from "@/lib/services/audit";
@@ -30,8 +31,12 @@ export async function loginAction(_prev: LoginState, form: FormData): Promise<Lo
 /** Entrada por código de acesso (XXXX-XXXX). */
 export async function loginCodigoAction(_prev: LoginState, form: FormData): Promise<LoginState> {
   const { ip } = await clientInfo();
-  const r = await autenticarCodigo(String(form.get("codigo") ?? "").slice(0, 40), ip);
+  const jar = await cookies();
+  const dev = jar.get(DEV_COOKIE)?.value;
+  const r = await autenticarCodigo(String(form.get("codigo") ?? "").slice(0, 40), ip, undefined, hashDispositivo(dev));
   if (!r.ok) return { erro: r.motivo === "bloqueado" ? "Muitas tentativas. Aguarde alguns minutos e tente novamente." : "Código inválido. Confira com quem administra o app." };
+  const novo = await registrarDispositivo(r.userId, dev);
+  jar.set(DEV_COOKIE, novo, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 365 * 86400 });
   await createSession(r.userId);
   redirect(safeNext(form.get("next")));
 }

@@ -13,7 +13,7 @@ export function CodigoForm({ next = "" }: { next?: string }) {
       <label className="block">
         <span className="mb-1 block text-sm font-medium">Código de acesso</span>
         <input name="codigo" inputMode="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="one-time-code" required maxLength={12}
-          placeholder="XXXX-XXXX" aria-describedby="ajuda-codigo"
+          placeholder="AB1234" aria-describedby="ajuda-codigo"
           className="min-h-12 w-full rounded-lg border border-borda px-3 text-center font-mono text-xl uppercase tracking-widest outline-none focus:border-verde focus:ring-2 focus:ring-verde/20" />
         <span id="ajuda-codigo" className="mt-1 block text-xs text-tinta/60">O código é pessoal e foi entregue por quem administra o app.</span>
       </label>
