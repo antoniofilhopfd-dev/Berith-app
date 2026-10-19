@@ -58,7 +58,7 @@ export default async function Publicacoes({ searchParams }: { searchParams: Prom
           {d.posts.map((p) => (
             <li key={p.id} className="overflow-hidden rounded-xl border border-borda bg-cartao">
               <a href={p.url ?? undefined} target="_blank" rel="noopener noreferrer" aria-label={`Abrir publicação de ${dataBr(p.publicado_em)} no Instagram`} className="block">
-                {p.miniatura /* eslint-disable-next-line @next/next/no-img-element */ ? <img src={p.miniatura} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-square w-full object-cover" /> : <span className="flex aspect-square w-full items-center justify-center bg-borda/40 text-xs text-tinta/50">sem imagem</span>}
+                {p.miniatura ? <img src={p.miniatura} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-square w-full object-cover" /> : <span className="flex aspect-square w-full items-center justify-center bg-borda/40 text-xs text-tinta/50">sem imagem</span>}
               </a>
               <div className="p-2 text-xs sm:p-3">
                 <p className="flex justify-between font-semibold uppercase text-tinta/60"><span>{p.formato}</span><span>{dataBr(p.publicado_em)}</span></p>

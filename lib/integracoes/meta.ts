@@ -135,6 +135,8 @@ async function insightsIg(conta: ContaAtiva, idExterno: string, _formato: Format
 
 const LIMITE_INSIGHTS_POSTS = 40;
 const miniaturaHttps = (u: string | null) => (u && /^https:\/\/[^\s"'<>]+$/.test(u) ? u.slice(0, 1000) : null);
+/** Links dos posts: só https (nunca javascript:/data:), mesmo vindo da API oficial. */
+const linkHttps = (u: string | null) => miniaturaHttps(u)?.slice(0, 500) ?? null;
 
 const METRICAS_MES: [keyof MetricasMes, string][] = [
   ["alcance", "reach"], ["visualizacoes", "views"], ["visitasPerfil", "profile_views"], ["interacoes", "total_interactions"],
@@ -232,7 +234,7 @@ export const instagram: Provedor = {
         if (Number.isNaN(quando.getTime())) continue;
         if (quando < desde) { passouDoLimite = true; break; }
         const post: PostExterno = {
-          idExterno: id, legenda: str(p.caption), url: str(p.permalink), publicadoEm: quando,
+          idExterno: id, legenda: str(p.caption), url: linkHttps(str(p.permalink)), publicadoEm: quando,
           tipo: str(p.media_product_type) === "REELS" ? "REELS" : str(p.media_type),
           miniatura: miniaturaHttps(str(p.thumbnail_url) ?? (["IMAGE", "CAROUSEL_ALBUM"].includes(str(p.media_type) ?? "") ? str(p.media_url) : null)),
           curtidas: num(p.like_count), comentarios: num(p.comments_count),
