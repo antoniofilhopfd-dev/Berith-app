@@ -3,7 +3,9 @@ import { sessoesDoUsuario } from "@/lib/services/senha";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { Badge, Card } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import { encerrarOutrasAction, encerrarSessaoAction, senhaAction } from "../actions";
+import { modoLogin } from "@/lib/auth/codigo";
+import { permissoesDe } from "@/lib/permissions";
+import { encerrarOutrasAction, encerrarSessaoAction, modoLoginAction, senhaAction } from "../actions";
 
 export const metadata = { title: "Segurança" };
 export const dynamic = "force-dynamic";
@@ -11,8 +13,19 @@ export const dynamic = "force-dynamic";
 export default async function Seguranca() {
   const user = await requireUser();
   const sessoes = await sessoesDoUsuario(user.id, await hashSessaoAtual());
+  const pode = (await permissoesDe(user.id)).has("configuracoes:gerir");
+  const modo = await modoLogin();
   return (
     <>
+      {pode && (
+        <Card title="Forma de entrada no app">
+          <ActionForm action={modoLoginAction} submit="Salvar forma de entrada" resetOnOk={false}>
+            <label className="flex min-h-11 items-start gap-2 text-sm"><input type="radio" name="modo" value="ambos" defaultChecked={modo === "ambos"} className="mt-1 h-4 w-4" /><span><strong>Código de acesso</strong>, com e-mail e senha como alternativa (escondida na tela de entrada).</span></label>
+            <label className="flex min-h-11 items-start gap-2 text-sm"><input type="radio" name="modo" value="codigo" defaultChecked={modo === "codigo"} className="mt-1 h-4 w-4" /><span><strong>Somente código de acesso.</strong> E-mail e senha deixam de funcionar para entrar.</span></label>
+            <p className="text-xs text-tinta/60">Antes de escolher “somente código”, gere o código de cada pessoa em Equipe (inclusive o seu). O código é pessoal; gerar outro encerra os acessos anteriores da pessoa.</p>
+          </ActionForm>
+        </Card>
+      )}
       <Card title="Alterar senha">
         <ActionForm action={senhaAction} submit="Alterar senha">
           <Field label="Senha atual"><input name="atual" type="password" autoComplete="current-password" required className={inputCls} /></Field>

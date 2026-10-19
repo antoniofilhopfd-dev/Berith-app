@@ -12,6 +12,7 @@ import { desconectar, iniciarConexao, removerContaInstagram } from "@/lib/integr
 import { REDES, REDES_ATIVAS, type Rede } from "@/lib/editorial";
 import { isTime } from "@/lib/time";
 import { assertCan } from "@/lib/permissions";
+import { definirModoLogin } from "@/lib/auth/codigo";
 import { executarAgendador } from "@/lib/services/agendador";
 
 const g = (f: FormData, k: string) => { const v = f.get(k); return typeof v === "string" ? v : ""; };
@@ -58,3 +59,8 @@ export const removerContaAction = guarded(async (u, f) => {
   await removerContaInstagram(u.id, z.string().regex(/^\d{1,40}$/, "Conta inválida.").parse(f.get("igId")));
   return { ok: "Conta removida e dados dela apagados." };
 }, ["/configuracoes/redes", "/relatorios"]);
+
+export const modoLoginAction = guarded(async (u, f) => {
+  await definirModoLogin(u.id, z.enum(["codigo", "ambos"]).parse(f.get("modo")));
+  return { ok: "Forma de entrada salva." };
+}, ["/configuracoes/seguranca"]);

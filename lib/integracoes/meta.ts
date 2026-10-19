@@ -162,6 +162,25 @@ async function totaisJanela(conta: ContaAtiva, since: number, until: number): Pr
   return { valores, erro: Object.keys(valores).length ? null : ultimoErro };
 }
 
+/** Soma os totais de [ini, fim) em janelas de até 30 dias (limite da Meta). O fim nunca passa de "agora". Lança erro se a Meta recusar tudo. */
+async function totaisPeriodo(conta: ContaAtiva, ini: Date, fimPedido: Date, agora: Date): Promise<MetricasMes | null> {
+  if (!conta.contaExternaId) return null;
+  const fim = Math.min(fimPedido.getTime(), agora.getTime());
+  if (fim <= ini.getTime()) return null; // período que ainda não começou
+  const soma: MetricasMes = {};
+  let inicio = ini.getTime(), ultimoErro: string | null = null, algum = false;
+  // Meses de 31 dias e períodos longos vão em várias janelas (o alcance somado de janelas é aproximado).
+  while (inicio < fim) {
+    const fimJanela = Math.min(inicio + 30 * 86_400_000, fim);
+    const r = await totaisJanela(conta, Math.floor(inicio / 1000), Math.floor(fimJanela / 1000));
+    if (r.erro) ultimoErro = r.erro;
+    for (const [k, v] of Object.entries(r.valores) as [keyof MetricasMes, number][]) { soma[k] = (soma[k] ?? 0) + v; algum = true; }
+    inicio = fimJanela;
+  }
+  if (!algum) throw new Error(ultimoErro ?? "A Meta não devolveu métricas para o período.");
+  return soma;
+}
+
 export const instagram: Provedor = {
   rede: "instagram", ...base("instagram", ESCOPOS_IG),
   async trocarCodigo({ code, redirectUri }) {
@@ -188,26 +207,11 @@ export const instagram: Provedor = {
     return m;
   },
   async metricasMes(conta, ano, mes, agora = new Date()) {
-    if (!conta.contaExternaId) return null;
     const mm = (n: number) => String(n).padStart(2, "0");
-    const ini = localToUtc(`${ano}-${mm(mes)}-01`, "00:00");
     const prox = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${mm(mes + 1)}-01`;
-    const fimMes = localToUtc(prox, "00:00");
-    const fim = new Date(Math.min(fimMes.getTime(), agora.getTime()));
-    if (fim <= ini) return null; // mês ainda não começou
-    const soma: MetricasMes = {};
-    let inicio = ini.getTime(), ultimoErro: string | null = null, algum = false;
-    // A Meta limita cada consulta a 30 dias: meses de 31 dias vão em duas janelas (o alcance somado de janelas é aproximado).
-    while (inicio < fim.getTime()) {
-      const fimJanela = Math.min(inicio + 30 * 86_400_000, fim.getTime());
-      const r = await totaisJanela(conta, Math.floor(inicio / 1000), Math.floor(fimJanela / 1000));
-      if (r.erro) ultimoErro = r.erro;
-      for (const [k, v] of Object.entries(r.valores) as [keyof MetricasMes, number][]) { soma[k] = (soma[k] ?? 0) + v; algum = true; }
-      inicio = fimJanela;
-    }
-    if (!algum) throw new Error(ultimoErro ?? "A Meta não devolveu métricas para o período.");
-    return soma;
+    return totaisPeriodo(conta, localToUtc(`${ano}-${mm(mes)}-01`, "00:00"), localToUtc(prox, "00:00"), agora);
   },
+  async metricasPeriodo(conta, ini, fim) { return totaisPeriodo(conta, ini, fim, new Date()); },
   async listarPostsConta(conta, desde, limite) {
     if (!conta.contaExternaId) return [];
     const out: PostExterno[] = [];

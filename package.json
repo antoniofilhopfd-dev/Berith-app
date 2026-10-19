@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run",
     "gerar:vapid": "node scripts/gerar-vapid.mjs",
+    "codigo:gerar": "node scripts/codigo-acesso.mjs",
     "admin:criar": "node scripts/criar-admin.mjs",
     "pretest": "node scripts/gerar-migracoes.mjs",
     "gerar:segredo": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",

@@ -7,6 +7,7 @@ import { PERFIS } from "@/lib/permissions";
 import * as E from "@/lib/services/equipe";
 import { sendMail } from "@/lib/services/mailer";
 import { adminCreateReset } from "@/lib/services/senha";
+import { emitirCodigo, revogarCodigo } from "@/lib/auth/codigo";
 
 const id = z.coerce.number().int().positive();
 
@@ -26,3 +27,8 @@ export const perfilEquipeAction = guarded(async (u, f) => {
 }, ["/equipe", "/"]);
 export const situacaoAction = guarded(async (u, f) => { await E.alterarSituacao(u.id, id.parse(f.get("id")), z.enum(["ativo", "suspenso"]).parse(f.get("status"))); return { ok: "Situação atualizada." }; }, ["/equipe"]);
 export const linkSenhaAction = guarded(async (u, f) => { const t = await adminCreateReset(u.id, id.parse(f.get("id"))); return { ok: "Link de redefinição gerado (válido por 60 minutos).", link: `${await baseUrl()}/redefinir-senha/${t}` }; }, []);
+export const codigoAcessoAction = guarded(async (u, f) => {
+  const r = await emitirCodigo(u.id, id.parse(f.get("id")));
+  return { ok: `Código de ${r.nome} gerado. Os acessos anteriores dessa pessoa foram encerrados.`, segredo: r.codigo };
+}, ["/equipe"]);
+export const revogarCodigoAction = guarded(async (u, f) => { await revogarCodigo(u.id, id.parse(f.get("id"))); return { ok: "Código revogado. A pessoa não consegue mais entrar por código." }; }, ["/equipe"]);
