@@ -13,6 +13,10 @@ O app usa **somente as APIs oficiais** de cada plataforma. Nada é simulado: sem
 
 O código foi validado contra **servidores simulados** que reproduzem o formato das respostas (36 testes em `tests/integracoes.test.ts`): sequência de chamadas, parâmetros, polling, tratamento de erro, mascaramento de tokens e reconexão. **Isso não substitui um teste real**: nomes de campos, versões e limites das APIs mudam. Faça um teste com uma conta de homologação antes de depender da publicação automática.
 
+## Relatórios: só Instagram, conta inteira
+
+A tela e as exportações de **Relatórios** mostram apenas o Instagram (`REDES_RELATORIO` em `lib/services/relatorios.ts`). Além das publicações feitas pelo app, o agendador importa a cada ~6 h os **posts da conta inteira** (últimos 90 dias, até 60 posts; tabela `posts_externos`) com alcance, curtidas, comentários, compartilhamentos, salvamentos e visualizações que a Meta informar (o que ela não informar fica em branco). Com isso a tela mostra o **ranking de desempenho** (interações = curtidas + comentários + compartilhamentos + salvamentos), **melhor dia e horário** (só com 8+ posts; indica a confiança) e **formatos**. Testado apenas contra servidor simulado.
+
 ## O que você precisa providenciar (ações humanas)
 
 ### Meta (Instagram + Facebook)

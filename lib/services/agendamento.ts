@@ -288,8 +288,8 @@ async function avisarFalha(pubId: number, detalhe: string) {
 }
 
 /* ================= Coleta de métricas (cron) ================= */
-export async function coletarMetricas(agora = new Date()): Promise<{ publicacoes: number; contas: number }> {
-  const out = { publicacoes: 0, contas: 0 };
+export async function coletarMetricas(agora = new Date()): Promise<{ publicacoes: number; contas: number; postsConta: number }> {
+  const out = { publicacoes: 0, contas: 0, postsConta: 0 };
   const redes = await query<RowDataPacket>(
     `SELECT r.id, r.rede, r.post_externo_id, p.formato FROM publicacao_redes r JOIN publicacoes p ON p.id = r.publicacao_id
      WHERE r.envio = 'publicada' AND r.assistida = 0 AND r.post_externo_id IS NOT NULL AND r.publicada_em > DATE_SUB(?, INTERVAL 90 DAY)
@@ -321,8 +321,32 @@ export async function coletarMetricas(agora = new Date()): Promise<{ publicacoes
         out.contas++;
       }
     } catch (e) { await logIntegracao(rede, "aviso", "metricas_conta_falhou", e instanceof Error ? e.message : "erro"); }
+    out.postsConta += await importarPostsDaConta(rede, ca.conta, agora);
   }
   return out;
+}
+
+/** Importa os posts recentes da conta inteira (inclusive os feitos fora do app). No máximo a cada 6 h por rede. */
+const JANELA_POSTS_DIAS = 90, LIMITE_POSTS = 60;
+async function importarPostsDaConta(rede: Rede, conta: Parameters<ReturnType<typeof provedor>["metricasConta"]>[0], agora: Date): Promise<number> {
+  const prov = provedor(rede);
+  if (!prov.listarPostsConta) return 0;
+  const recente = await query<RowDataPacket>("SELECT 1 FROM posts_externos WHERE rede = ? AND coletado_em > DATE_SUB(?, INTERVAL 6 HOUR) LIMIT 1", [rede, agora]);
+  if (recente.length) return 0;
+  try {
+    const desde = new Date(agora.getTime() - JANELA_POSTS_DIAS * 86_400_000);
+    const posts = await prov.listarPostsConta(conta, desde, LIMITE_POSTS);
+    for (const p of posts) {
+      await execute(
+        `INSERT INTO posts_externos (rede, id_externo, tipo, legenda, url, publicado_em, alcance, curtidas, comentarios, compartilhamentos, salvamentos, visualizacoes, coletado_em)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE tipo = VALUES(tipo), legenda = VALUES(legenda), url = VALUES(url), alcance = VALUES(alcance), curtidas = VALUES(curtidas), comentarios = VALUES(comentarios),
+           compartilhamentos = VALUES(compartilhamentos), salvamentos = VALUES(salvamentos), visualizacoes = VALUES(visualizacoes), coletado_em = VALUES(coletado_em)`,
+        [rede, p.idExterno, p.tipo, p.legenda?.slice(0, 2000) ?? null, p.url, p.publicadoEm, p.alcance ?? null, p.curtidas ?? null, p.comentarios ?? null, p.compartilhamentos ?? null, p.salvamentos ?? null, p.visualizacoes ?? null, agora]);
+    }
+    if (posts.length) await logIntegracao(rede, "info", "posts_importados", `${posts.length} post(s) da conta atualizados`);
+    return posts.length;
+  } catch (e) { await logIntegracao(rede, "aviso", "posts_conta_falhou", e instanceof Error ? e.message : "erro"); return 0; }
 }
 
 /* ================= Lembretes (geram notificações internas; o push as entrega) ================= */

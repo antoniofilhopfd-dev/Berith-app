@@ -184,6 +184,36 @@ describe("Meta — autorização", () => {
   });
 });
 
+describe("Instagram — posts da conta inteira", () => {
+  const ig = conta("instagram", { contaExternaId: "ig9" });
+  it("lista os posts recentes com métricas e para na data de corte", async () => {
+    rota = (r) => {
+      if (r.path.endsWith("/ig9/media")) return { json: { data: [
+        { id: "p1", caption: "Novo", media_type: "VIDEO", media_product_type: "REELS", permalink: "https://www.instagram.com/reel/1/", timestamp: "2026-10-15T12:00:00+0000", like_count: 40, comments_count: 3 },
+        { id: "p2", caption: "Velho", media_type: "IMAGE", permalink: "https://www.instagram.com/p/2/", timestamp: "2026-01-01T12:00:00+0000", like_count: 1, comments_count: 0 },
+      ], paging: { next: `${base}/proxima` } } };
+      if (r.path.endsWith("/p1/insights")) return r.query.metric === "saved" ? { json: { data: [{ values: [{ value: 7 }] }] } } : r.query.metric === "reach" ? { json: { data: [{ values: [{ value: 800 }] }] } } : { status: 400, json: { error: { message: "métrica indisponível" } } };
+      return { status: 404, json: {} };
+    };
+    const posts = await instagram.listarPostsConta!(ig, new Date("2026-07-01T00:00:00Z"), 50);
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({ idExterno: "p1", tipo: "REELS", url: "https://www.instagram.com/reel/1/", curtidas: 40, comentarios: 3, alcance: 800, salvamentos: 7 });
+    expect(posts[0].visualizacoes).toBeUndefined(); // a rede não informou → nada inventado
+    expect(reqs.some((q) => q.path === "/proxima")).toBe(false); // parou no post antigo
+    expect(reqs[0].query.access_token).toBe("TOKEN-REAL");
+  });
+  it("segue a paginação e erro da plataforma vira exceção sem vazar o token", async () => {
+    rota = (r) => (r.path.endsWith("/ig9/media") ? { json: { data: [{ id: "a", timestamp: "2026-10-15T12:00:00+0000", like_count: 1, comments_count: 0 }], paging: { next: `${base}/proxima` } } } : r.path === "/proxima" ? { json: { data: [{ id: "b", timestamp: "2026-10-14T12:00:00+0000", like_count: 2, comments_count: 0 }] } } : { status: 400, json: {} });
+    expect((await instagram.listarPostsConta!(ig, new Date("2026-07-01T00:00:00Z"), 50)).map((p) => p.idExterno)).toEqual(["a", "b"]);
+    rota = () => ({ status: 400, json: { error: { message: "Token TOKEN-REAL inválido" } } });
+    await expect(instagram.listarPostsConta!(ig, new Date("2026-07-01T00:00:00Z"), 50)).rejects.toThrow(/HTTP 400/);
+  });
+  it("métricas da conta trazem alcance e visualizações do dia quando a rede informa", async () => {
+    rota = (r) => (r.path.endsWith("/ig9") ? { json: { followers_count: 500 } } : r.query.metric === "reach" ? { json: { data: [{ total_value: { value: 3000 } }] } } : { status: 400, json: {} });
+    expect(await instagram.metricasConta(ig)).toEqual({ seguidores: 500, alcance: 3000 });
+  });
+});
+
 describe("Instagram — publicação", () => {
   const ig = conta("instagram", { contaExternaId: "ig9" });
   const ok = (r: Req) => {

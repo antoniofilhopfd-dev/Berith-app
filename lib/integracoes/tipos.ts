@@ -14,6 +14,10 @@ export type MetricasColetadas = {
 };
 export type MetricasConta = { seguidores?: number | null; alcance?: number | null; visualizacoes?: number | null };
 
+export type PostExterno = {
+  idExterno: string; tipo: string | null; legenda: string | null; url: string | null; publicadoEm: Date;
+} & MetricasColetadas;
+
 export type TokensOAuth = { accessToken: string; refreshToken?: string | null; expiraEm?: Date | null; escopos?: string | null };
 export type PerfilConta = { contaExternaId: string; nome: string; meta?: Record<string, string> };
 
@@ -30,6 +34,8 @@ export interface Provedor {
   publicar(conta: ContaAtiva, c: ConteudoPublicar): Promise<ResultadoPublicacao>;
   metricasPublicacao(conta: ContaAtiva, idExterno: string, formato: Formato): Promise<MetricasColetadas | null>;
   metricasConta(conta: ContaAtiva): Promise<MetricasConta | null>;
+  /** Posts recentes da conta inteira (inclusive os publicados fora do app) com suas métricas. */
+  listarPostsConta?(conta: ContaAtiva, desde: Date, limite: number): Promise<PostExterno[]>;
   /** Usa PKCE (code_verifier)? */
   pkce?: boolean;
 }

@@ -3,7 +3,7 @@ import { inflateRawSync } from "node:zlib";
 import { execute, closePool } from "@/lib/db";
 import { ForbiddenError } from "@/lib/permissions";
 import { DomainError } from "@/lib/services/errors";
-import { gerarRelatorio, textoCelula, validarPeriodo, variacao } from "@/lib/services/relatorios";
+import { REDES_RELATORIO, analisarPosts, gerarRelatorio, gerarRelatorioConta, textoCelula, validarPeriodo, variacao, type PostConta } from "@/lib/services/relatorios";
 import { gerarXlsx } from "@/lib/export/xlsx";
 import { gerarPdf } from "@/lib/export/pdf";
 import { paraPdf, paraPlanilhas } from "@/lib/export/relatorio";
@@ -128,5 +128,45 @@ describe("exportação", () => {
     const pdf = await gerarPdf({ titulo: "T 😀", subtitulo: "S", tabelas: [{ titulo: "Grande", colunas: [{ rotulo: "A", largura: 100 }, { rotulo: "B", largura: 20, alinhar: "dir" }], linhas }] });
     const { PDFDocument } = await import("pdf-lib");
     expect((await PDFDocument.load(pdf)).getPageCount()).toBeGreaterThan(3); // várias páginas
+  });
+});
+
+describe("conta inteira: ranking e melhores horários", () => {
+  const post = (id: string, quando: string, v: Partial<PostConta["valores"]>, tipo = "IMAGE"): PostConta => ({
+    rede: "instagram", id, tipo, legenda: `Post ${id}`, url: null, publicado_em: new Date(quando),
+    valores: { alcance: null, impressoes: null, curtidas: null, comentarios: null, compartilhamentos: null, salvamentos: null, visualizacoes: null, ...v },
+  });
+  it("ranking soma curtidas, comentários, compartilhamentos e salvamentos; ausente conta 0", () => {
+    const r = analisarPosts([post("a", "2026-10-01T15:00:00Z", { curtidas: 10 }), post("b", "2026-10-02T15:00:00Z", { curtidas: 5, comentarios: 3, salvamentos: 4, compartilhamentos: 1 }), post("c", "2026-10-03T15:00:00Z", {})]);
+    expect(r.ranking.map((p) => [p.id, p.interacoes])).toEqual([["b", 13], ["a", 10], ["c", 0]]);
+  });
+  it("não indica melhor horário com amostra pequena (nunca chuta)", () => {
+    const r = analisarPosts([post("a", "2026-10-01T15:00:00Z", { curtidas: 10 })]);
+    expect(r.horarios).toEqual({ amostra: 1, minimo: 8, melhor: null });
+  });
+  it("indica melhor dia e hora (fuso local) com amostra suficiente e marca a confiança", () => {
+    // quarta-feira 15:00Z = 12h local; demais posts às 22h
+    const posts = [0, 1, 2, 3].map((i) => post(`q${i}`, `2026-10-${14 + 7 * (i % 2)}T15:00:00Z`, { curtidas: 100 })); // 14/10 e 21/10 (quartas)
+    const baixos = [0, 1, 2, 3, 4].map((i) => post(`o${i}`, `2026-10-${10 + i}T01:00:00Z`, { curtidas: 5 }));
+    const r = analisarPosts([...posts, ...baixos]);
+    expect(r.horarios.melhor).toMatchObject({ dia: "Quarta", hora: 12, confianca: "alta" });
+    expect(r.formatos[0]).toMatchObject({ tipo: "Imagem", posts: 9 });
+  });
+  it("lê os posts importados do período e exige a permissão de ver relatórios", async () => {
+    await execute("INSERT INTO posts_externos (rede, id_externo, tipo, legenda, publicado_em, curtidas, comentarios, coletado_em) VALUES ('instagram','x1','REELS','Fora do app','2026-10-12 15:00:00',30,4,NOW()), ('instagram','x2','IMAGE','Antigo','2026-08-01 15:00:00',99,9,NOW())");
+    const c = await gerarRelatorioConta(e.coord, "2026-10-10", "2026-10-19");
+    expect(c.posts.map((p) => p.id)).toEqual(["x1"]);
+    expect(c.ranking[0]).toMatchObject({ id: "x1", interacoes: 34 });
+    expect(c.redes.find((r) => r.rede === "instagram")).toMatchObject({ posts: 1, soma: { curtidas: 30, alcance: null } });
+    await expect(gerarRelatorioConta(e.semPerfil, "2026-10-10", "2026-10-19")).rejects.toBeInstanceOf(ForbiddenError);
+    // só Instagram quando pedido (como na tela e nas exportações)
+    const so = await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19", true, REDES_RELATORIO);
+    expect(so.redes.map((x) => x.rede)).toEqual(["instagram"]);
+    expect(so.totais.publicadas).toBe(2); // facebook e youtube ficam de fora
+    expect(so.publicacoes.every((p) => p.rede === "instagram")).toBe(true);
+    // exportação inclui as abas novas
+    const xl = gerarXlsx(paraPlanilhas(await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19"), c));
+    expect(xl.length).toBeGreaterThan(1000);
+    expect(paraPlanilhas(await gerarRelatorio(e.coord, "2026-10-10", "2026-10-19"), c).map((p) => p.nome)).toEqual(expect.arrayContaining(["Ranking Instagram", "Posts da conta"]));
   });
 });
