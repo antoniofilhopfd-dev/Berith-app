@@ -1,12 +1,12 @@
 import { requireUser } from "@/lib/auth/session";
 import { exigir } from "@/lib/auth/pagina";
 import { permissoesDe, PERFIL_ROTULO, PERFIS } from "@/lib/permissions";
-import { cargaDaEquipe, listarEquipe, listarPendentes } from "@/lib/services/equipe";
+import { cargaDaEquipe, emailParaExibir, listarEquipe, listarPendentes } from "@/lib/services/equipe";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { Badge, Card, Empty, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { codigosVisiveis } from "@/lib/auth/codigo";
-import { anonimizarAction, aprovarAction, codigoAcessoAction, definirCodigoAction, convidarAction, linkSenhaAction, perfilEquipeAction, rejeitarAction, situacaoAction } from "./actions";
+import { adicionarPessoaAction, anonimizarAction, aprovarAction, codigoAcessoAction, definirCodigoAction, linkSenhaAction, perfilEquipeAction, rejeitarAction, situacaoAction } from "./actions";
 
 export const metadata = { title: "Equipe" };
 export const dynamic = "force-dynamic";
@@ -61,7 +61,7 @@ export default async function Equipe() {
               return (
                 <li key={p.id} className={`space-y-3 py-4 ${p.status === "suspenso" ? "opacity-60" : ""}`}>
                   <div><p className="font-semibold">{p.nome}{p.status === "suspenso" && <> <Badge tom="vermelho">suspenso</Badge></>}</p>
-                    <p className="break-all text-xs text-tinta/60">{p.email}{p.telefone ? ` · ${p.telefone}` : ""} · desde {formatDate(p.criado_em)}</p></div>
+                    <p className="break-all text-xs text-tinta/60">{emailParaExibir(p.email) ? `${emailParaExibir(p.email)} · ` : ""}{p.telefone ? `${p.telefone} · ` : ""}desde {formatDate(p.criado_em)}</p></div>
                   <div className="flex flex-wrap items-center gap-2">{blocoPerfil(p)}</div>
                   {gerir && <div><p className="mb-1 text-xs font-semibold uppercase text-tinta/60">Código de acesso</p>{blocoCodigo(p)}</div>}
                   <dl className="grid grid-cols-5 gap-1 text-center text-xs">{([["Produção", c?.aberto], ["Revisão", c?.revisao], ["Ajustes", c?.ajustes], ["Atrasadas", c?.atrasadas], ["Publ. 30 d", c?.publicadasMes]] as const).map(([k, v]) => <div key={k} className="rounded-lg bg-white p-1.5"><dd className={`text-base font-semibold ${k === "Atrasadas" && v ? "text-red-700" : ""}`}>{v ?? 0}</dd><dt className="text-[10px] text-tinta/60">{k}</dt></div>)}</dl>
@@ -78,7 +78,7 @@ export default async function Equipe() {
                   const c = carga.get(p.id);
                   return (
                     <tr key={p.id} className={p.status === "suspenso" ? "opacity-60" : ""}>
-                      <th scope="row" className="py-2 pr-2 font-medium">{p.nome}{p.status === "suspenso" && <> <Badge tom="vermelho">suspenso</Badge></>}<div className="font-normal text-xs text-tinta/60">{p.temCodigo ? "código de acesso ativo · " : "sem código · "}{p.email}{p.telefone ? ` · ${p.telefone}` : ""} · desde {formatDate(p.criado_em)}</div></th>
+                      <th scope="row" className="py-2 pr-2 font-medium">{p.nome}{p.status === "suspenso" && <> <Badge tom="vermelho">suspenso</Badge></>}<div className="font-normal text-xs text-tinta/60">{p.temCodigo ? "código de acesso ativo · " : "sem código · "}{emailParaExibir(p.email) ? `${emailParaExibir(p.email)} · ` : ""}{p.telefone ? `${p.telefone} · ` : ""}desde {formatDate(p.criado_em)}</div></th>
                       {gerir && <td className="py-2 pr-3">{blocoCodigo(p)}</td>}
                       <td>{blocoPerfil(p)}</td>
                       <td className="text-right">{c?.aberto ?? 0}</td><td className="text-right">{c?.revisao ?? 0}</td><td className="text-right">{c?.ajustes ?? 0}</td><td className={`text-right ${c?.atrasadas ? "font-semibold text-red-700" : ""}`}>{c?.atrasadas ?? 0}</td><td className="text-right">{c?.publicadasMes ?? 0}</td>
@@ -92,14 +92,14 @@ export default async function Equipe() {
         )}
       </Card>
       {gerir && (
-        <Card title="Convidar pessoa">
-          <ActionForm action={convidarAction} submit="Criar convite">
+        <Card title="Adicionar pessoa">
+          <ActionForm action={adicionarPessoaAction} submit="Adicionar pessoa">
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Nome"><input name="nome" required maxLength={150} className={inputCls} /></Field>
-              <Field label="E-mail"><input name="email" type="email" required maxLength={190} className={inputCls} /></Field>
-              <Field label="Perfil"><select name="perfil" defaultValue="integrante" className={inputCls}>{PERFIS.map((x) => <option key={x} value={x}>{PERFIL_ROTULO[x]}</option>)}</select></Field>
+              <Field label="Nome"><input name="nome" required minLength={2} maxLength={150} autoComplete="off" className={inputCls} /></Field>
+              <Field label="Função"><select name="perfil" defaultValue="integrante" className={inputCls}>{PERFIS.map((x) => <option key={x} value={x}>{PERFIL_ROTULO[x]}</option>)}</select></Field>
+              <Field label="Código de acesso (opcional)"><input name="codigo" maxLength={11} autoCapitalize="characters" autoComplete="off" placeholder="vazio = gerar (ex.: AB1234)" className={inputCls + " font-mono uppercase"} /></Field>
             </div>
-            <p className="text-xs text-tinta/60">A pessoa cria a senha pelo link do convite (válido por 7 dias) e o acesso só é liberado depois da sua aprovação.</p>
+            <p className="text-xs text-tinta/60">A pessoa entra só com o código, sem e-mail nem senha, e o acesso é liberado na hora, com a função escolhida. O código aparece aqui e também na lista abaixo; para trocá-lo use “✎ editar” ou “Gerar novo código”. Se escolher o código, use 6 a 10 letras e números (com ao menos uma letra e um número).</p>
           </ActionForm>
         </Card>
       )}

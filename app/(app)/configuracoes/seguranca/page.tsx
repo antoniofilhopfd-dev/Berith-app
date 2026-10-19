@@ -3,6 +3,8 @@ import { sessoesDoUsuario } from "@/lib/services/senha";
 import { ActionForm, Field, inputCls } from "@/components/action-form";
 import { Badge, Card } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
+import type { RowDataPacket } from "mysql2/promise";
+import { query } from "@/lib/db";
 import { modoLogin } from "@/lib/auth/codigo";
 import { permissoesDe } from "@/lib/permissions";
 import { encerrarOutrasAction, encerrarSessaoAction, modoLoginAction, senhaAction } from "../actions";
@@ -15,6 +17,7 @@ export default async function Seguranca() {
   const sessoes = await sessoesDoUsuario(user.id, await hashSessaoAtual());
   const pode = (await permissoesDe(user.id)).has("configuracoes:gerir");
   const modo = await modoLogin();
+  const temSenha = (await query<RowDataPacket>("SELECT 1 x FROM users WHERE id = ? AND senha_hash <> '!'", [user.id])).length > 0; // quem entra só por código não tem senha
   return (
     <>
       {pode && (
@@ -26,14 +29,14 @@ export default async function Seguranca() {
           </ActionForm>
         </Card>
       )}
-      <Card title="Alterar senha">
+      {temSenha && <Card title="Alterar senha">
         <ActionForm action={senhaAction} submit="Alterar senha">
           <Field label="Senha atual"><input name="atual" type="password" autoComplete="current-password" required className={inputCls} /></Field>
           <Field label="Nova senha (mín. 10 caracteres, com letras e números)"><input name="nova" type="password" autoComplete="new-password" required minLength={10} className={inputCls} /></Field>
           <Field label="Confirmar nova senha"><input name="confirmar" type="password" autoComplete="new-password" required className={inputCls} /></Field>
           <p className="text-xs text-tinta/60">Ao trocar a senha, os outros dispositivos são desconectados.</p>
         </ActionForm>
-      </Card>
+      </Card>}
       <Card title="Dispositivos conectados">
         <ul className="divide-y divide-borda text-sm">{sessoes.map((s) => (
           <li key={s.id} className="flex flex-wrap items-center gap-2 py-3"><div className="min-w-0 flex-1"><p className="truncate">{s.user_agent ?? "Dispositivo desconhecido"} {s.atual && <Badge tom="verde">este dispositivo</Badge>}</p><p className="text-xs text-tinta/60">IP {s.ip ?? "—"} · entrou em {formatDateTime(s.criado_em)} · expira em {formatDateTime(s.expira_em)}</p></div>
